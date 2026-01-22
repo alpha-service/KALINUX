@@ -1,49 +1,195 @@
-# Getting Started with Create React App
+# 🏪 POS System - Point of Sale Alpha
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Modern Point of Sale system built with React, Node.js, Express, and MongoDB.
 
-## Available Scripts
+## 🚀 Quick Deployment to VPS
 
-In the project directory, you can run:
+**Deploy to pos.kruhn.eu:8080 in 3 steps:**
 
-### `npm start`
+```bash
+# 1. Connect to your VPS
+ssh root@YOUR_VPS_IP
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+# 2. Run auto-install script
+curl -sSL https://raw.githubusercontent.com/alpha-service/KALINUX/main/install-vps.sh | bash
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+# 3. Access your POS
+# http://pos.kruhn.eu:8080
+```
 
-### `npm test`
+**That's it! 🎉**
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## 📚 Documentation
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- **[ИНСТРУКЦИЯ.md](ИНСТРУКЦИЯ.md)** - Русская инструкция по развертыванию
+- **[START_HERE.md](START_HERE.md)** - Complete deployment guide (English)
+- **[QUICK_DEPLOY.md](QUICK_DEPLOY.md)** - Quick start guide
+- **[DEPLOY_INSTRUCTIONS.md](DEPLOY_INSTRUCTIONS.md)** - Full documentation
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+---
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## ✨ Features
 
-### `npm run eject`
+- 🛒 **Point of Sale** - Modern POS interface
+- 📦 **Inventory Management** - Product and stock control
+- 👥 **Customer Management** - Customer database
+- 📊 **Reports & Analytics** - Sales reports and statistics
+- 🧾 **Receipt Generation** - Thermal and PDF receipts
+- 💳 **Payment Processing** - Multiple payment methods
+- 🎨 **Customizable Design** - Multiple themes and layouts
+- 🌐 **Multi-language** - Support for multiple languages
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+---
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## 🛠️ Tech Stack
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Frontend
+- **React 19** - UI framework
+- **Radix UI** - Component library
+- **Tailwind CSS** - Styling
+- **Lucide React** - Icons
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Backend
+- **Node.js** - Runtime
+- **Express** - Web framework
+- **MongoDB** - Database
+- **Docker** - Containerization
 
-## Learn More
+---
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## 💻 Local Development
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Prerequisites
+- Node.js 20+
+- MongoDB (or use Docker)
+
+### Quick Start
+
+```bash
+# Clone repository
+git clone https://github.com/alpha-service/KALINUX.git
+cd KALINUX
+
+# Install dependencies
+npm install --legacy-peer-deps
+
+# Start backend (in one terminal)
+node backend-server.js
+
+# Start frontend (in another terminal)
+npm start
+```
+
+Frontend: http://localhost:3000  
+Backend API: http://localhost:8000
+
+---
+
+## 🐳 Docker Deployment
+
+```bash
+# Start all services
+docker-compose up -d --build
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+Services:
+- Frontend: http://localhost:8080
+- Backend: http://localhost:8000 (internal)
+- MongoDB: localhost:27017 (internal)
+
+---
+
+## 📦 Project Structure
+
+```
+├── src/                    # Frontend React application
+│   ├── components/         # React components
+│   ├── pages/             # Page components
+│   ├── hooks/             # Custom hooks
+│   └── utils/             # Utilities
+├── backend-server.js      # Backend Express server
+├── docker-compose.yml     # Docker compose config
+├── Dockerfile             # Frontend Docker image
+└── Dockerfile.backend     # Backend Docker image
+```
+
+---
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create `.env` file:
+```env
+PORT=8000
+MONGO_URL=mongodb://localhost:27017/pos_alpha
+DB_NAME=pos_alpha
+CORS_ORIGINS=http://localhost:3000
+```
+
+### Docker Configuration
+
+Edit `docker-compose.yml` to customize:
+- Ports
+- MongoDB credentials
+- CORS origins
+- Volume mounts
+
+---
+
+## 📖 Available Scripts
+
+### Frontend
+- `npm start` - Start development server
+- `npm run build` - Build for production
+- `npm test` - Run tests
+
+### Backend
+- `node backend-server.js` - Start backend server
+- `pm2 start backend-server.js` - Start with PM2
+
+### Docker
+- `docker-compose up -d` - Start containers
+- `docker-compose down` - Stop containers
+- `docker-compose logs -f` - View logs
+
+---
+
+## 🔒 Security Notes
+
+- Change default MongoDB credentials in production
+- Use environment variables for secrets
+- Enable firewall on VPS
+- Use HTTPS in production (see deployment docs)
+
+---
+
+## 📝 License
+
+This project is private and proprietary.
+
+---
+
+## 🤝 Support
+
+For deployment help, see documentation files:
+- [ИНСТРУКЦИЯ.md](ИНСТРУКЦИЯ.md) - Russian
+- [START_HERE.md](START_HERE.md) - English
+
+---
+
+Made with ❤️ for modern retail businesses
 
 ### Code Splitting
 
