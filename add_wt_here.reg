@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\wt]
+@="Open Windows Terminal here"
+"Icon"="wt.exe"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\wt\command]
+@="wt.exe -d \"%V\""

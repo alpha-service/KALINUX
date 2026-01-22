@@ -1,0 +1,286 @@
+/* ALPHA&CO POS Custom Styles */
+
+/* ============= PERFORMANCE OPTIMIZATIONS ============= */
+* {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* GPU acceleration for animated elements */
+.product-card,
+.cart-item,
+.category-tab,
+.pay-button {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Product card hover effect - OPTIMIZED */
+.product-card {
+    transition: transform 0.12s ease-out, box-shadow 0.12s ease-out, border-color 0.12s ease-out;
+    contain: layout style paint;
+}
+
+.product-card:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 20px -5px rgba(26, 54, 93, 0.2);
+}
+
+.product-card:active {
+    transform: scale(0.98);
+    transition: transform 0.08s ease-out;
+}
+
+/* Cart item animations */
+.cart-item {
+    animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Category tab active state */
+.category-tab {
+    position: relative;
+    transition: color 0.2s ease-out;
+}
+
+.category-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #ff6b35;
+    border-radius: 2px 2px 0 0;
+}
+
+/* Payment button pulse */
+.pay-button {
+    position: relative;
+    overflow: hidden;
+}
+
+.pay-button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s ease-out, height 0.3s ease-out;
+}
+
+.pay-button:active::after {
+    width: 200px;
+    height: 200px;
+}
+
+/* Quantity controls */
+.qty-btn {
+    transition: background-color 0.15s ease-out, transform 0.1s ease-out;
+}
+
+.qty-btn:active {
+    transform: scale(0.9);
+}
+
+/* Toast animations */
+.toast-enter {
+    animation: toastIn 0.3s ease-out;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Search input focus */
+.search-input:focus {
+    box-shadow: 0 0 0 3px rgba(26, 54, 93, 0.15);
+}
+
+/* Smooth scrolling for product grid */
+.product-grid {
+    scroll-behavior: smooth;
+    contain: layout style;
+}
+
+/* Instant scroll for performance */
+@media (prefers-reduced-motion: reduce) {
+    .product-grid {
+        scroll-behavior: auto;
+    }
+    .product-card,
+    .cart-item {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* Price styling */
+.price-tag {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+/* Compact cart mode */
+.compact-cart-item {
+    transition: background-color 0.1s ease-out;
+}
+
+.compact-cart-item:hover {
+    background-color: rgba(241, 245, 249, 0.8);
+}
+
+/* Skeleton loading */
+.skeleton {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Mobile cart drawer */
+@media (max-width: 768px) {
+    .cart-drawer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 80vh;
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+    }
+}
+
+/* Print styles - Hide all non-document elements */
+@media print {
+    /* Hide navigation, sidebar, buttons, and UI elements */
+    .no-print,
+    nav,
+    header,
+    aside,
+    .sidebar,
+    [class*="sidebar"],
+    [class*="Sidebar"],
+    [data-testid*="sidebar"],
+    [data-testid="bottom-nav"],
+    button,
+    .btn,
+    .fixed,
+    footer:not(.document-footer),
+    [role="navigation"],
+    [class*="drawer"],
+    [class*="modal"],
+    .absolute:not(.printable-document *),
+    .sticky,
+    input,
+    select {
+        display: none !important;
+    }
+    
+    /* Show only document area */
+    .print-only,
+    .document-container,
+    .printable-document {
+        display: block !important;
+    }
+    
+    /* Full width document */
+    .document-area,
+    .document-content,
+    .document-viewer,
+    .printable-document,
+    [data-testid="document-viewer"],
+    [data-testid="document-detail"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: white !important;
+    }
+    
+    /* Reset body for print */
+    body {
+        background: white !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: visible !important;
+    }
+    
+    /* Ensure document pages break properly */
+    .page-break {
+        page-break-after: always;
+    }
+    
+    /* Hide all fixed elements */
+    .fixed, [style*="position: fixed"] {
+        display: none !important;
+    }
+    
+    /* Make main content full width */
+    main, [role="main"] {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+
+    /* Document viewer specific print styles */
+    .document-viewer {
+        padding: 0 !important;
+        background: white !important;
+    }
+    
+    .document-viewer > div {
+        margin: 0 !important;
+        box-shadow: none !important;
+    }
+}
+
+/* Date input styling for French locale */
+input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    font-family: 'Inter', sans-serif;
+}
+
+input[type="date"]::-webkit-datetime-edit {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Force date format display */
+input[type="date"]:not(:focus):not([value])::-webkit-datetime-edit-text,
+input[type="date"]:not(:focus):not([value])::-webkit-datetime-edit-month-field,
+input[type="date"]:not(:focus):not([value])::-webkit-datetime-edit-day-field,
+input[type="date"]:not(:focus):not([value])::-webkit-datetime-edit-year-field {
+    color: #9ca3af;
+}

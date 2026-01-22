@@ -1,0 +1,54 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: pos_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: changeme
+      MONGO_INITDB_DATABASE: pos_alpha
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - pos_network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: pos_backend
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      - PORT=8000
+      - MONGO_URL=mongodb://admin:changeme@mongodb:27017/pos_alpha?authSource=admin
+      - DB_NAME=pos_alpha
+      - CORS_ORIGINS=http://pos.kruhn.eu,https://pos.kruhn.eu,http://pos.kruhn.eu:8080,http://localhost:8080
+    volumes:
+      - ./uploads:/app/uploads
+      - ./settings.json:/app/settings.json
+    networks:
+      - pos_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_BACKEND_URL=/api
+    container_name: pos_frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - pos_network
+
+volumes:
+  mongodb_data:
+
+networks:
+  pos_network:
+    driver: bridge

@@ -1,0 +1,28 @@
+name: Local Continue Config
+version: 0.0.1
+schema: v1
+
+models:
+  - name: Qwen3-Coder 30B (Ollama local)
+    provider: ollama
+    model: qwen3-coder:30b
+    roles: [chat, edit]
+    # apiBase: http://localhost:11434  # укажи только если Ollama не на localhost/удалённо
+
+  - name: Qwen3-Coder (OpenRouter FREE)
+    provider: openrouter
+    model: qwen/qwen3-coder:free
+    apiBase: https://openrouter.ai/api/v1
+    apiKey: ${{ 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  }}
+    roles: [chat, edit]
+    
+  - name: DeepSeek R1 32B (Ollama)
+    provider: ollama
+    model: deepseek-r1:32b
+    roles: [chat, edit]
+    
+  - name: Qwen2.5 Coder 14B (Ollama)
+    provider: ollama
+    model: qwen2.5-coder:14b
+    roles: [chat, edit]
+    
