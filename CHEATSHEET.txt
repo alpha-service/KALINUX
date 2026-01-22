@@ -1,0 +1,156 @@
+═══════════════════════════════════════════════════════════
+🚀 POS DEPLOYMENT CHEAT SHEET - pos.kruhn.eu:8080
+═══════════════════════════════════════════════════════════
+
+📌 БЫСТРАЯ УСТАНОВКА (AUTO-INSTALL)
+───────────────────────────────────────────────────────────
+ssh root@YOUR_VPS_IP
+curl -sSL https://raw.githubusercontent.com/alpha-service/KALINUX/main/install-vps.sh | bash
+
+
+📌 РУЧНАЯ УСТАНОВКА
+───────────────────────────────────────────────────────────
+# 1. Install Docker
+curl -fsSL https://get.docker.com | sh
+apt install docker-compose -y
+
+# 2. Clone & Deploy
+cd /opt
+git clone https://github.com/alpha-service/KALINUX.git pos
+cd pos
+docker-compose up -d --build
+
+# 3. Check
+docker-compose ps
+
+
+📌 УПРАВЛЕНИЕ
+───────────────────────────────────────────────────────────
+cd /opt/pos
+
+# Статус
+docker-compose ps
+
+# Логи
+docker-compose logs -f
+docker-compose logs -f frontend
+docker-compose logs -f backend
+docker-compose logs -f mongodb
+
+# Перезапуск
+docker-compose restart
+docker-compose restart frontend
+docker-compose restart backend
+
+# Остановка
+docker-compose down
+
+# Обновление
+git pull && docker-compose up -d --build
+
+# Зайти в контейнер
+docker exec -it pos_backend sh
+docker exec -it pos_mongodb mongosh -u admin -p changeme
+
+
+📌 NGINX + SSL (HTTPS)
+───────────────────────────────────────────────────────────
+# Install
+apt install nginx certbot python3-certbot-nginx -y
+
+# Configure Nginx
+cat > /etc/nginx/sites-available/pos << 'EOF'
+server {
+    listen 80;
+    server_name pos.kruhn.eu;
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+EOF
+
+ln -sf /etc/nginx/sites-available/pos /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+
+# Get SSL
+certbot --nginx -d pos.kruhn.eu
+
+
+📌 FIREWALL
+───────────────────────────────────────────────────────────
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 8080/tcp
+ufw enable
+
+
+📌 РЕШЕНИЕ ПРОБЛЕМ
+───────────────────────────────────────────────────────────
+# Порт занят
+fuser -k 8080/tcp
+docker-compose restart
+
+# Очистка Docker
+docker system prune -a
+docker volume prune
+
+# MongoDB backup
+docker exec pos_mongodb mongodump -u admin -p changeme -o /data/backup
+docker cp pos_mongodb:/data/backup ./backup-$(date +%Y%m%d)
+
+# Проверка сети
+docker network ls
+docker network inspect pos_pos_network
+
+
+📌 МОНИТОРИНГ
+───────────────────────────────────────────────────────────
+# Ресурсы
+docker stats
+
+# Диск
+df -h
+du -sh /opt/pos
+
+# Логи Nginx
+tail -f /var/log/nginx/access.log
+tail -f /var/log/nginx/error.log
+
+# Процессы
+ps aux | grep docker
+netstat -tulpn | grep 8080
+
+
+📌 DNS НАСТРОЙКА
+───────────────────────────────────────────────────────────
+Добавьте A-запись:
+  Тип: A
+  Имя: pos
+  Значение: IP_вашего_VPS
+
+Проверка:
+  nslookup pos.kruhn.eu
+  ping pos.kruhn.eu
+
+
+📌 ДОСТУП
+───────────────────────────────────────────────────────────
+HTTP:  http://pos.kruhn.eu:8080
+HTTPS: https://pos.kruhn.eu (после SSL)
+
+
+📌 ФАЙЛЫ ДОКУМЕНТАЦИИ
+───────────────────────────────────────────────────────────
+ИНСТРУКЦИЯ.md          - Русская инструкция
+START_HERE.md          - English guide
+QUICK_DEPLOY.md        - Quick reference
+DEPLOY_INSTRUCTIONS.md - Full documentation
+
+
+═══════════════════════════════════════════════════════════
+GitHub: https://github.com/alpha-service/KALINUX
+═══════════════════════════════════════════════════════════
