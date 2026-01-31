@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useDesign, DESIGNS } from "@/hooks/useDesign";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function CartItem({
   item,
@@ -22,6 +23,7 @@ export default function CartItem({
   onRemoveDiscount
 }) {
   const { currentDesign, design } = useDesign();
+  const { t } = useLanguage();
   const priceInputRef = useRef(null);
   const discountInputRef = useRef(null);
 
@@ -84,7 +86,7 @@ export default function CartItem({
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium truncate">{item.name}</p>
           <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
-            <span>TVA {item.vat_rate}%</span>
+            <span>{t('pos_tax')} {item.vat_rate}%</span>
             {item.discount_value > 0 && (
               <span className="text-green-600">
                 | -{item.discount_type === "percent" ? `${item.discount_value}%` : `€${item.discount_value}`}
@@ -127,7 +129,7 @@ export default function CartItem({
             item.discount_value > 0 ? "text-green-600" : "text-muted-foreground"
           )}
           onClick={() => onStartEditDiscount(item.product_id)}
-          title="Remise"
+          title={t('discount')}
         >
           <Tag className="w-3 h-3" />
         </Button>
@@ -160,7 +162,7 @@ export default function CartItem({
               item.priceOverridden ? 'text-amber-600' : item.discount_value > 0 ? 'text-green-600' : 'text-brand-navy'
             }`}
             onClick={() => onStartEditPrice(item.product_id)}
-            title="Modifier le prix"
+            title={t('pos_edit_price')}
           >
             €{afterDiscount.toFixed(2)}
           </span>
@@ -265,7 +267,7 @@ export default function CartItem({
               item.priceOverridden && "bg-amber-50"
             )}
             onClick={() => onStartEditPrice(item.product_id)}
-            title="Modifier le prix unitaire"
+            title={t('pos_edit_price')}
           >
             <span className={`text-[10px] ${item.priceOverridden ? 'text-amber-600 font-medium' : 'text-muted-foreground'}`}>
               €{item.unit_price.toFixed(2)} / {item.unit}
@@ -314,12 +316,12 @@ export default function CartItem({
                 item.discount_value > 0 ? "text-green-600 bg-green-50" : "text-muted-foreground hover:bg-slate-100"
               )}
               onClick={() => onStartEditDiscount(item.product_id)}
-              title="Ajouter une remise"
+              title={t('discount')}
             >
               <Tag className="w-3 h-3 mr-0.5" />
               {item.discount_value > 0 
                 ? (item.discount_type === "percent" ? `-${item.discount_value}%` : `-€${item.discount_value}`)
-                : "Remise"
+                : t('discount')
               }
             </Button>
             {item.discount_value > 0 && (
@@ -328,7 +330,7 @@ export default function CartItem({
                 size="sm"
                 className="h-5 w-5 p-0 text-red-400 hover:text-red-600"
                 onClick={() => onRemoveDiscount(item.product_id)}
-                title="Supprimer la remise"
+                title={t('pos_remove_discount')}
               >
                 <X className="w-3 h-3" />
               </Button>
@@ -337,7 +339,7 @@ export default function CartItem({
         )}
         
         <span className="text-[10px] text-muted-foreground">
-          TVA {item.vat_rate}%: €{lineVat.toFixed(2)}
+          {t('pos_tax')} {item.vat_rate}%: €{lineVat.toFixed(2)}
         </span>
       </div>
 
@@ -349,7 +351,7 @@ export default function CartItem({
         <div className="text-[10px] text-muted-foreground">
           {item.discount_value > 0 && (
             <span className="text-green-600">
-              Remise: -€{discountAmount.toFixed(2)}
+              {t('discount')}: -€{discountAmount.toFixed(2)}
             </span>
           )}
         </div>
@@ -362,7 +364,7 @@ export default function CartItem({
             €{afterDiscount.toFixed(2)}
           </p>
           <p className="text-[9px] text-muted-foreground">
-            TTC: €{lineTotal.toFixed(2)}
+            {t('pos_incl_tax')}: €{lineTotal.toFixed(2)}
           </p>
         </div>
       </div>

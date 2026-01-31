@@ -5,14 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const PAYMENT_METHODS = [
-  { id: "cash", label: "Espèces / Cash", labelNl: "Contant", icon: Banknote },
-  { id: "card", label: "Carte / Kaart", labelNl: "Bankkaart", icon: CreditCard },
-  { id: "bank_transfer", label: "Virement / Overschrijving", labelNl: "Bankoverschrijving", icon: Building2 },
+  { id: "cash", key: "payment_cash", icon: Banknote },
+  { id: "card", key: "payment_card", icon: CreditCard },
+  { id: "bank_transfer", key: "payment_bank_transfer", icon: Building2 },
 ];
 
 export default function PaymentModal({ open, onClose, total, onPaymentComplete }) {
+  const { t } = useLanguage();
   const [selectedMethod, setSelectedMethod] = useState("cash");
   const [amountTendered, setAmountTendered] = useState("");
   const [payments, setPayments] = useState([]);
@@ -96,10 +98,10 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
       <DialogContent className="sm:max-w-lg" data-testid="payment-modal">
         <DialogHeader>
           <DialogTitle className="font-heading text-xl">
-            Paiement / Betaling
+            {t('payment')}
           </DialogTitle>
           <DialogDescription>
-            Total à payer / Te betalen
+            {t('amount')} {t('pay').toLowerCase()}
           </DialogDescription>
         </DialogHeader>
 
@@ -110,15 +112,15 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
             <p className="text-4xl font-heading font-bold">€{total.toFixed(2)}</p>
             {paidSoFar > 0 && (
               <div className="mt-3 pt-3 border-t border-white/20 flex justify-between text-sm">
-                <span>Payé / Betaald: €{paidSoFar.toFixed(2)}</span>
-                <span>Reste / Rest: €{remaining.toFixed(2)}</span>
+                <span>{t('status_paid')}: €{paidSoFar.toFixed(2)}</span>
+                <span>{t('amount')} {t('remaining')?.toLowerCase() || 'reste'}: €{remaining.toFixed(2)}</span>
               </div>
             )}
           </div>
 
           {/* Payment Methods */}
           <div>
-            <p className="text-sm font-medium mb-3">Mode de paiement / Betaalmethode</p>
+            <p className="text-sm font-medium mb-3">{t('actions')}</p>
             <div className="grid grid-cols-3 gap-2">
               {PAYMENT_METHODS.map((method) => (
                 <button
@@ -134,7 +136,7 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
                   <method.icon className={`w-6 h-6 mb-2 ${
                     selectedMethod === method.id ? "text-brand-navy" : "text-muted-foreground"
                   }`} />
-                  <span className="text-xs font-medium text-center">{method.label}</span>
+                  <span className="text-xs font-medium text-center">{t(method.key)}</span>
                 </button>
               ))}
             </div>
@@ -143,7 +145,7 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
           {/* Amount Input */}
           {selectedMethod === "cash" && (
             <div>
-              <p className="text-sm font-medium mb-3">Montant reçu / Ontvangen bedrag</p>
+              <p className="text-sm font-medium mb-3">{t('amount')} {t('status_accepted').toLowerCase()}</p>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl text-muted-foreground">€</span>
                 <Input
@@ -175,7 +177,7 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
                   onClick={() => handleQuickCash(remaining)}
                   className="flex-1 bg-slate-100"
                 >
-                  Exact
+                  {t('confirm')}
                 </Button>
               </div>
 
@@ -183,7 +185,7 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
               {change > 0 && (
                 <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
                   <span className="text-green-800 font-medium">
-                    Monnaie à rendre / Wisselgeld
+                    {t('return')}
                   </span>
                   <span className="text-2xl font-bold text-green-600">
                     €{change.toFixed(2)}
@@ -196,13 +198,13 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
           {/* Partial Payments List */}
           {payments.length > 0 && (
             <div>
-              <p className="text-sm font-medium mb-2">Paiements / Betalingen</p>
+              <p className="text-sm font-medium mb-2">{t('payment')}</p>
               <div className="space-y-2">
                 {payments.map((p, idx) => (
                   <div key={idx} className="flex items-center justify-between bg-slate-50 rounded-lg p-2">
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">
-                        {PAYMENT_METHODS.find(m => m.id === p.method)?.label}
+                        {t(PAYMENT_METHODS.find(m => m.id === p.method)?.key)}
                       </Badge>
                     </div>
                     <span className="font-bold">€{p.amount.toFixed(2)}</span>
@@ -217,7 +219,7 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
                   onClick={handleAddPayment}
                 >
                   <Calculator className="w-4 h-4 mr-2" />
-                  Ajouter paiement partiel / Deelbetaling toevoegen
+                  {t('add')} {t('payment').toLowerCase()}
                 </Button>
               )}
             </div>
@@ -229,7 +231,7 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
         {/* Action Buttons */}
         <div className="flex gap-3">
           <Button variant="outline" className="flex-1" onClick={handleClose}>
-            Annuler / Annuleren
+            {t('cancel')}
           </Button>
           <Button
             className="flex-1 bg-brand-orange hover:bg-brand-orange/90"
@@ -238,7 +240,7 @@ export default function PaymentModal({ open, onClose, total, onPaymentComplete }
             data-testid="confirm-payment-btn"
           >
             <Check className="w-4 h-4 mr-2" />
-            Confirmer / Bevestigen
+            {t('confirm')}
           </Button>
         </div>
       </DialogContent>

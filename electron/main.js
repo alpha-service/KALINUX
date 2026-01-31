@@ -1,6 +1,16 @@
 const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
+const {
+  printReceipt,
+  testPrinter,
+  listUSBPrinters,
+  listWindowsPrinters,
+  listAllPrinters,
+  setPrinterConfig,
+  getPrinterConfig,
+  diagnosePrinter
+} = require('./escpos-printer');
 
 // Keep a global reference to prevent garbage collection
 let mainWindow;
@@ -25,16 +35,16 @@ function createWindow() {
   });
 
   // Load the app
-  const startUrl = isDev 
-    ? 'http://localhost:3000' 
+  const startUrl = isDev
+    ? 'http://localhost:3000'
     : `file://${path.join(__dirname, '../build/index.html')}`;
-  
+
   mainWindow.loadURL(startUrl);
 
   // Show when ready to prevent flickering
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    
+
     // Open DevTools in development
     if (isDev) {
       mainWindow.webContents.openDevTools();
@@ -112,17 +122,17 @@ function createMenu() {
     {
       label: 'Aide',
       submenu: [
-        { 
-          label: 'Documentation', 
-          click: () => shell.openExternal('https://alpha-co.be/pos/docs') 
+        {
+          label: 'Documentation',
+          click: () => shell.openExternal('https://alpha-co.be/pos/docs')
         },
-        { 
-          label: 'Support', 
-          click: () => shell.openExternal('mailto:support@alpha-co.be') 
+        {
+          label: 'Support',
+          click: () => shell.openExternal('mailto:support@alpha-co.be')
         },
         { type: 'separator' },
-        { 
-          label: 'Outils développeur', 
+        {
+          label: 'Outils développeur',
           accelerator: 'CmdOrCtrl+Shift+I',
           click: () => mainWindow.webContents.toggleDevTools()
         }
@@ -153,6 +163,93 @@ app.on('activate', () => {
 ipcMain.handle('get-app-version', () => app.getVersion());
 ipcMain.handle('get-platform', () => process.platform);
 
+// ESC/POS Printer IPC Handlers
+ipcMain.handle('printer-list-usb', async () => {
+  try {
+    const printers = listUSBPrinters();
+    console.log('Found USB printers:', printers);
+    return { success: true, printers };
+  } catch (error) {
+    console.error('Error listing USB printers:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('printer-list-windows', async () => {
+  try {
+    const printers = await listWindowsPrinters();
+    console.log('Found Windows printers:', printers);
+    return { success: true, printers };
+  } catch (error) {
+    console.error('Error listing Windows printers:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('printer-list-all', async () => {
+  try {
+    const printers = await listAllPrinters();
+    console.log('All printers:', printers);
+    return { success: true, printers };
+  } catch (error) {
+    console.error('Error listing all printers:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('printer-test', async () => {
+  try {
+    const result = await testPrinter();
+    return { success: true, method: result.method };
+  } catch (error) {
+    console.error('Test print failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('printer-print-receipt', async (event, document) => {
+  try {
+    console.log('Printing receipt:', document.number);
+    const result = await printReceipt(document);
+    return { success: true, method: result.method };
+  } catch (error) {
+    console.error('Print receipt failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('printer-set-config', async (event, config) => {
+  try {
+    const newConfig = setPrinterConfig(config);
+    return { success: true, config: newConfig };
+  } catch (error) {
+    console.error('Set printer config failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('printer-get-config', async () => {
+  try {
+    const config = getPrinterConfig();
+    return { success: true, config };
+  } catch (error) {
+    console.error('Get printer config failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('printer-diagnose', async () => {
+  try {
+    const result = await diagnosePrinter();
+    console.log('Printer diagnostics:', result);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Printer diagnose failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Auto-updater (optional - requires electron-updater)
 // const { autoUpdater } = require('electron-updater');
 // autoUpdater.checkForUpdatesAndNotify();
+

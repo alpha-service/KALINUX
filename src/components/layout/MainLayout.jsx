@@ -34,25 +34,25 @@ import DesignSelector from "@/components/DesignSelector";
 const API = '/api';
 
 const NAV_ITEMS = [
-  { path: "/pos", label: "Caisse / Kassa", labelShort: "POS", icon: ShoppingCart, title: "Point de Vente" },
-  { path: "/sales", label: "Ventes / Verkopen", labelShort: "Ventes", icon: History, title: "Historique Ventes" },
-  { path: "/documents", label: "Documents", labelShort: "Docs", icon: FileText, title: "Documents" },
-  { path: "/returns", label: "Retours / Retouren", labelShort: "Retours", icon: RotateCcw, title: "Retours" },
-  { path: "/products", label: "Produits / Producten", labelShort: "Produits", icon: Package, title: "Produits" },
-  { path: "/clients", label: "Clients / Klanten", labelShort: "Clients", icon: Users, title: "Clients" },
-  { path: "/reports", label: "Rapports / Rapporten", labelShort: "Rapports", icon: BarChart3, title: "Rapports" },
-  { path: "/cash-register", label: "Caisse / Register", labelShort: "Caisse", icon: Calculator, title: "Caisse" },
-  { path: "/inventory", label: "Stock / Voorraad", labelShort: "Stock", icon: Package, title: "Inventaire" },
-  { path: "/users", label: "Utilisateurs / Gebruikers", labelShort: "Users", icon: UserCog, title: "Utilisateurs" },
-  { path: "/settings", label: "Paramètres / Instellingen", labelShort: "Config", icon: Settings, title: "Paramètres" },
-  { path: "/design-preview", label: "Aperçu Design", labelShort: "Design", icon: Palette, title: "Design System" },
+  { path: "/pos", key: "nav_pos", icon: ShoppingCart, title: "Point de Vente" },
+  { path: "/sales", key: "nav_history", icon: History, title: "Historique Ventes" },
+  { path: "/documents", key: "nav_documents", icon: FileText, title: "Documents" },
+  { path: "/returns", key: "nav_returns", icon: RotateCcw, title: "Retours" },
+  { path: "/products", key: "nav_products", icon: Package, title: "Produits" },
+  { path: "/clients", key: "nav_clients", icon: Users, title: "Clients" },
+  { path: "/reports", key: "nav_reports", icon: BarChart3, title: "Rapports" },
+  { path: "/cash_register", key: "nav_cash_register", icon: Calculator, title: "Caisse" },
+  { path: "/inventory", key: "nav_inventory", icon: Package, title: "Inventaire" },
+  { path: "/users", key: "nav_users", icon: UserCog, title: "Utilisateurs" },
+  { path: "/settings", key: "nav_settings", icon: Settings, title: "Paramètres" },
+  { path: "/design-preview", key: "nav_design", icon: Palette, title: "Design System" },
 ];
 
 export default function MainLayout() {
   const location = useLocation();
   const { colors } = useTheme();
   const { currentDesign, design } = useDesign();
-  const { language, toggleLanguage } = useLanguage();
+  const { language, toggleLanguage, t } = useLanguage();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(() => {
     const saved = localStorage.getItem('sidebar_pinned');
@@ -135,7 +135,7 @@ export default function MainLayout() {
   const fetchShiftStatus = async () => {
     try {
       const response = await axios.get(`${API}/shifts/current`);
-      if (response.data.status !== "no_shift") {
+      if (response.data && response.data.status !== "no_shift") {
         setCurrentShift(response.data);
       } else {
         setCurrentShift(null);
@@ -294,12 +294,12 @@ export default function MainLayout() {
                 currentDesign === DESIGNS.MODERN && "animate-pulse"
               )} />
               <span className="font-medium text-xs">
-                {currentShift ? "Caisse ouverte" : "Caisse fermée"}
+                {currentShift ? (language === 'nl' ? "Kassa open" : "Caisse ouverte") : (language === 'nl' ? "Kassa gesloten" : "Caisse fermée")}
               </span>
             </div>
             {currentShift && (
               <p className="mt-0.5 text-[10px] opacity-80">
-                {currentShift.cashier_name || "Caissier"} • €{currentShift.sales_total?.toFixed(2) || "0.00"}
+                {currentShift.cashier_name || (language === 'nl' ? "Kassier" : "Caissier")} • €{currentShift.sales_total?.toFixed(2) || "0.00"}
               </p>
             )}
           </div>
@@ -319,7 +319,7 @@ export default function MainLayout() {
               className={({ isActive }) => getNavItemClasses(isActive)}
             >
               <item.icon className={design.iconSize} />
-              <span className="flex-1">{item.label}</span>
+              <span className="flex-1">{t(item.key)}</span>
               {item.path === "/inventory" && stockAlerts > 0 && (
                 <Badge className={cn(
                   "text-white text-[10px] h-4",
@@ -339,7 +339,7 @@ export default function MainLayout() {
           <div className="p-2 border-t border-white/10">
             <div className="flex items-center gap-1.5 text-amber-300 text-xs">
               <AlertCircle className="w-3 h-3" />
-              <span>{stockAlerts} stock faible</span>
+              <span>{stockAlerts} {language === 'nl' ? "lage voorraad" : "stock faible"}</span>
             </div>
           </div>
         )}

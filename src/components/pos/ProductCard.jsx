@@ -2,12 +2,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useDesign, DESIGNS } from "@/hooks/useDesign";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function ProductCard({ product, addToCart, gridSize = "medium" }) {
   const { currentDesign, design } = useDesign();
+  const { t, language } = useLanguage();
 
   // Extract product attributes for display
-  const nameParts = product.name_fr?.split(' - ') || [product.name_fr];
+  const name_val = language === 'nl' ? (product.name_nl || product.name_fr) : product.name_fr;
+  const nameParts = name_val?.split(' - ') || [name_val];
   const baseName = nameParts.slice(0, -1).join(' - ') || nameParts[0];
   const variantFromName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : null;
 
@@ -38,15 +41,15 @@ export default function ProductCard({ product, addToCart, gridSize = "medium" })
 
   // Build complete attributes list for tooltip
   const allAttributes = [];
-  if (product.variant_title) allAttributes.push({ label: 'Variante', value: product.variant_title });
-  if (product.size) allAttributes.push({ label: 'Taille', value: product.size });
-  if (product.color) allAttributes.push({ label: 'Couleur', value: product.color });
-  if (product.material) allAttributes.push({ label: 'Matériau', value: product.material });
-  if (product.weight) allAttributes.push({ label: 'Poids', value: `${product.weight} ${product.weight_unit || 'kg'}` });
-  if (product.length) allAttributes.push({ label: 'Longueur', value: `${product.length} cm` });
-  if (product.width) allAttributes.push({ label: 'Largeur', value: `${product.width} cm` });
-  if (product.height) allAttributes.push({ label: 'Hauteur', value: `${product.height} cm` });
-  if (product.depth) allAttributes.push({ label: 'Profondeur', value: `${product.depth} cm` });
+  if (product.variant_title) allAttributes.push({ label: t('pos_variant'), value: product.variant_title });
+  if (product.size) allAttributes.push({ label: t('pos_size'), value: product.size });
+  if (product.color) allAttributes.push({ label: t('pos_color'), value: product.color });
+  if (product.material) allAttributes.push({ label: t('pos_material'), value: product.material });
+  if (product.weight) allAttributes.push({ label: t('pos_weight'), value: `${product.weight} ${product.weight_unit || 'kg'}` });
+  if (product.length) allAttributes.push({ label: t('pos_length'), value: `${product.length} cm` });
+  if (product.width) allAttributes.push({ label: t('pos_width'), value: `${product.width} cm` });
+  if (product.height) allAttributes.push({ label: t('pos_height'), value: `${product.height} cm` });
+  if (product.depth) allAttributes.push({ label: t('pos_depth'), value: `${product.depth} cm` });
 
   // Add metafields to attributes
   metaEntries.forEach(([key, value]) => {
@@ -60,14 +63,14 @@ export default function ProductCard({ product, addToCart, gridSize = "medium" })
       <div className="font-bold text-sm border-b border-white/20 pb-1.5">{product.name_fr}</div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
         <div><span className="opacity-70">SKU:</span> {product.sku}</div>
-        {product.vendor && <div><span className="opacity-70">Marque:</span> {product.vendor}</div>}
-        {product.barcode && <div><span className="opacity-70">Code:</span> {product.barcode}</div>}
-        {product.product_type && <div><span className="opacity-70">Type:</span> {product.product_type}</div>}
+        {product.vendor && <div><span className="opacity-70">{t('pos_brand')}:</span> {product.vendor}</div>}
+        {product.barcode && <div><span className="opacity-70">{t('pos_code')}:</span> {product.barcode}</div>}
+        {product.product_type && <div><span className="opacity-70">{t('pos_type')}:</span> {product.product_type}</div>}
       </div>
 
       {allAttributes.length > 0 && (
         <div className="pt-1.5 border-t border-white/20">
-          <div className="font-medium text-xs mb-1 text-brand-orange">📐 Attributs / Kenmerken:</div>
+          <div className="font-medium text-xs mb-1 text-brand-orange">📐 {t('pos_attributes')}:</div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
             {allAttributes.map((attr, idx) => (
               <div key={idx}>
@@ -85,7 +88,7 @@ export default function ProductCard({ product, addToCart, gridSize = "medium" })
       )}
 
       <div className="flex justify-between items-center pt-1.5 border-t border-white/20">
-        <span className="text-xs font-bold text-green-400">📦 Stock: {product.stock_qty} {product.unit}</span>
+        <span className="text-xs font-bold text-green-400">📦 {t('pos_stock')}: {product.stock_qty} {product.unit}</span>
         <span className="text-sm font-bold text-brand-orange">€{product.price_retail.toFixed(2)}</span>
       </div>
     </div>
@@ -138,7 +141,7 @@ export default function ProductCard({ product, addToCart, gridSize = "medium" })
                   gridSize === 'small' ? 'top-0.5 right-0.5 text-[8px] px-1 py-0' : 'top-1 right-1 text-[10px]',
                   product.stock_qty <= 0 ? "bg-red-500" : "bg-amber-500"
                 )}>
-                  {gridSize === 'small' ? product.stock_qty : `Stock: ${product.stock_qty}`}
+                  {gridSize === 'small' ? product.stock_qty : `${t('pos_stock')}: ${product.stock_qty}`}
                 </Badge>
               )}
             </div>
@@ -180,7 +183,7 @@ export default function ProductCard({ product, addToCart, gridSize = "medium" })
               )}
 
               {gridSize === 'large' && (
-                <p className="text-[10px] text-muted-foreground truncate mt-0.5">{product.name_nl}</p>
+                <p className="text-[10px] text-muted-foreground truncate mt-0.5">{language === 'nl' ? (product.name_fr || product.name_nl) : product.name_nl}</p>
               )}
 
               {/* Price */}

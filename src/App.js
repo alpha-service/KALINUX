@@ -22,6 +22,7 @@ const CustomerHistory = lazy(() => import("@/pages/CustomerHistory"));
 const DesignPreview = lazy(() => import("@/pages/DesignPreview"));
 const Returns = lazy(() => import("@/pages/Returns"));
 const ReturnDetail = lazy(() => import("@/pages/ReturnDetail"));
+const DocumentPrintView = lazy(() => import("@/pages/DocumentPrintView"));
 
 // Loading spinner component
 const PageLoader = () => (
@@ -56,6 +57,8 @@ function App() {
                   <Route path="settings" element={<Settings />} />
                   <Route path="design-preview" element={<DesignPreview />} />
                 </Route>
+                {/* Full-screen document view (no layout) */}
+                <Route path="/documents/:docId/view" element={<DocumentPrintView />} />
               </Routes>
             </Suspense>
           </BrowserRouter>

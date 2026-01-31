@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useEffect, useRef, createRef } from 'react';
 
+export default function CartTable({
   cart, 
   onUpdateQty, 
   onRemoveItem, 

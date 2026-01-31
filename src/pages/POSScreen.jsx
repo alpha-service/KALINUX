@@ -28,6 +28,7 @@ import LayoutSelector from "@/components/pos/LayoutSelector";
 import DesignSelector from "@/components/DesignSelector";
 import { useTheme } from "@/hooks/useTheme";
 import { useDesign, DESIGNS } from "@/hooks/useDesign";
+import { useLanguage } from "@/hooks/useLanguage";
 import { cn } from "@/lib/utils";
 import ProductCard from "@/components/pos/ProductCard";
 import CategoryCard from "@/components/pos/CategoryCard";
@@ -40,6 +41,7 @@ export default function POSScreen() {
   const containerRef = useRef(null);
   const { colors } = useTheme();
   const { currentDesign, design } = useDesign();
+  const { t, language } = useLanguage();
 
   // Layout system
   const {
@@ -56,6 +58,7 @@ export default function POSScreen() {
   } = usePOSLayout();
 
   const [products, setProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState([]); // NEW: Store all products for barcode scanner
   const [categories, setCategories] = useState([]);
   // Cart persistence - load from localStorage
   const [cart, setCart] = useState(() => {
@@ -168,6 +171,10 @@ export default function POSScreen() {
         const categoriesRes = await axios.get(`${API}/categories`);
         setCategories(categoriesRes.data);
 
+        // Fetch ALL products for scanner and general use
+        const productsRes = await axios.get(`${API}/products`);
+        setAllProducts(productsRes.data);
+
         // Load reorder cart if exists
         const reorderCart = sessionStorage.getItem('reorder_cart');
         const reorderCustomerId = sessionStorage.getItem('reorder_customer_id');
@@ -201,28 +208,17 @@ export default function POSScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch products when a category is selected
+  // Filter products for display when category or allProducts changes
   useEffect(() => {
     if (selectedCategory) {
-      const fetchProducts = async () => {
-        setLoadingProducts(true); // Use light loading instead of full loading
-        try {
-          const response = await axios.get(`${API}/products?category_id=${selectedCategory.id}`);
-          setProducts(response.data);
-          setPosViewMode("products");
-        } catch (error) {
-          toast.error("Erreur de chargement des produits");
-          console.error(error);
-        } finally {
-          setLoadingProducts(false);
-        }
-      };
-      fetchProducts();
+      const categoryProducts = allProducts.filter(p => p.category_id === selectedCategory.id);
+      setProducts(categoryProducts);
+      setPosViewMode("products");
     } else {
       setProducts([]);
       setPosViewMode("collections");
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, allProducts]);
 
   // Go back to collections view
   const goBackToCollections = useCallback(() => {
@@ -330,12 +326,14 @@ export default function POSScreen() {
       setHighlightedItemId(product.id);
       setTimeout(() => setHighlightedItemId(null), 800);
 
+      const itemName = language === 'nl' ? (product.name_nl || product.name_fr) : product.name_fr;
+
       return [...prev, {
         product_id: product.id,
         sku: product.sku,
-        name: product.name_fr,
+        name: itemName,
         name_nl: product.name_nl,
-        description: product.name_fr, // Add description field for returns/credit notes
+        description: itemName, // Add description field for returns/credit notes
         qty: 1,
         unit_price: product.price_retail,
         unit: product.unit,
@@ -345,8 +343,9 @@ export default function POSScreen() {
         stock_qty: product.stock_qty
       }];
     });
-    toast.success(`${product.name_fr} ajouté`, { duration: 1500 });
-  }, []);
+    const itemName = language === 'nl' ? (product.name_nl || product.name_fr) : product.name_fr;
+    toast.success(`${itemName} ${t('msg_save_success').toLowerCase()}`, { duration: 1500 });
+  }, [language, t]);
 
   // Barcode scanner support (optimized for Approx and similar USB scanners)
   // Supports: EAN-13, EAN-8, UPC-A, Code128, QR codes with product ID
@@ -383,7 +382,7 @@ export default function POSScreen() {
         searchTerms.push(barcode.padStart(13, '0').toLowerCase());
       }
 
-      return products.find(p => {
+      return allProducts.find(p => {
         // Exact match on GTIN (from Shopify)
         if (p.gtin && searchTerms.some(term =>
           p.gtin.toLowerCase() === term ||
@@ -428,13 +427,14 @@ export default function POSScreen() {
 
         if (foundProduct) {
           addToCart(foundProduct);
+          const itemName = language === 'nl' ? (foundProduct.name_nl || foundProduct.name_fr) : foundProduct.name_fr;
           // Show product image briefly if available
           toast.success(
             <div className="flex items-center gap-2">
               {foundProduct.image_url && (
                 <img src={foundProduct.image_url} alt="" className="w-8 h-8 rounded object-cover" />
               )}
-              <span>✓ {foundProduct.name_fr}</span>
+              <span>✓ {itemName}</span>
             </div>,
             { duration: 2000 }
           );
@@ -442,7 +442,7 @@ export default function POSScreen() {
           // Show the scanned code for debugging
           toast.error(
             <div>
-              <div className="font-semibold">Code non trouvé</div>
+              <div className="font-semibold">{t('msg_no_results')}</div>
               <div className="text-xs opacity-75 font-mono">{cleanBarcode}</div>
             </div>,
             { duration: 4000 }
@@ -513,7 +513,7 @@ export default function POSScreen() {
       window.removeEventListener('keydown', handleKeyDown, true);
       if (timeout) clearTimeout(timeout);
     };
-  }, [products, addToCart]);
+  }, [allProducts, addToCart, t, language]);
 
   // Update cart item quantity
   const updateQuantity = (productId, delta) => {
@@ -1041,7 +1041,7 @@ export default function POSScreen() {
         type: discountInput.type,
         value: parseFloat(discountInput.value)
       });
-      toast.success("Remise appliquée / Korting toegepast");
+      toast.success(t('msg_save_success'));
     }
     setShowDiscountDialog(false);
   };
@@ -1061,7 +1061,7 @@ export default function POSScreen() {
             currentDesign === DESIGNS.MODERN ? "text-purple-900" :
               currentDesign === DESIGNS.MINIMAL ? "text-black tracking-wider" : "text-brand-navy"
           )}>
-            Panier / Winkelwagen
+            {t('pos_cart')}
           </h2>
           <div className="flex items-center gap-1">
             {/* Compact mode toggle */}
@@ -1074,7 +1074,7 @@ export default function POSScreen() {
                   currentDesign === DESIGNS.MINIMAL ? "hover:bg-neutral-200 rounded-none" : ""
               )}
               onClick={toggleCompactCart}
-              title={compactCart ? "Vue normale" : "Vue compacte"}
+              title={compactCart ? t('pos_normal_view') : t('pos_compact_view')}
             >
               {compactCart ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
             </Button>
@@ -1129,7 +1129,7 @@ export default function POSScreen() {
               data-testid="select-customer-btn"
             >
               <User className="w-3 h-3 mr-1.5" />
-              Client
+              {t('customer')}
             </Button>
           )}
         </div>
@@ -1150,7 +1150,7 @@ export default function POSScreen() {
                 currentDesign === DESIGNS.MINIMAL ? "text-neutral-400" :
                   currentDesign === DESIGNS.LEGACY ? "text-orange-400" : ""
             )} />
-            <p className="text-sm">Panier vide / Lege winkelwagen</p>
+            <p className="text-sm">{t('pos_empty_cart')}</p>
           </div>
         ) : (
           <div className={cn(
@@ -1207,17 +1207,17 @@ export default function POSScreen() {
           onClick={() => setShowQuickAddProduct(true)}
         >
           <Plus className="w-3 h-3 mr-1" />
-          Ajouter produit rapide
+          {t('pos_quick_add_title')}
         </Button>
 
         {/* Totals */}
         <div className="space-y-0.5 text-xs">
           <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">Sous-total</span>
+            <span className="text-muted-foreground">{t('subtotal')}</span>
             <span className="font-medium">€{totals.subtotal}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">TVA (21%)</span>
+            <span className="text-muted-foreground">{t('vat')} (21%)</span>
             <span className="font-medium">€{totals.vatTotal}</span>
           </div>
           <Separator className={cn(
@@ -1250,7 +1250,7 @@ export default function POSScreen() {
           onClick={() => setShowDiscountDialog(true)}
           data-testid="global-discount-btn"
         >
-          REMISE
+          {t('discount').toUpperCase()}
           {globalDiscount.value > 0 && (
             <Badge className={cn(
               "ml-1.5 text-[10px] h-4",
@@ -1300,24 +1300,24 @@ export default function POSScreen() {
                 currentDesign === DESIGNS.MODERN ? "rounded-2xl shadow-xl shadow-purple-500/10" :
                   currentDesign === DESIGNS.MINIMAL ? "rounded-none border-2 border-black" : ""
               )}>
-                <DropdownMenuLabel className="text-[10px] text-muted-foreground">Créer un document</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-[10px] text-muted-foreground">{t('documents_create')}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSaveAsDevis} className="text-xs">
                   <FileText className="w-3 h-3 mr-2 text-blue-500" />
-                  Devis / Offerte
+                  {t('doc_quote')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSaveAsPurchaseOrder} className="text-xs">
                   <Package className="w-3 h-3 mr-2 text-purple-500" />
-                  Bon de commande
+                  {t('doc_purchase_order')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSaveAsInvoice} className="text-xs">
                   <FileCheck className="w-3 h-3 mr-2 text-green-500" />
-                  Facture / Factuur
+                  {t('doc_invoice')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSaveAsDeliveryNote} className="text-xs">
                   <Truck className="w-3 h-3 mr-2 text-orange-500" />
-                  Bon de livraison
+                  {t('doc_delivery_note')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1336,7 +1336,7 @@ export default function POSScreen() {
             data-testid="pay-btn"
           >
             <Receipt className="w-4 h-4 mr-2" />
-            PAYER / BETALEN
+            {t('pos_pay')}
           </Button>
         </div>
       </div>
@@ -1359,7 +1359,7 @@ export default function POSScreen() {
                 currentDesign === DESIGNS.LEGACY ? "border-orange-500" : "border-brand-navy"
           )}>
           </div>
-          <p className="text-muted-foreground">Chargement / Laden...</p>
+          <p className="text-muted-foreground">{t('msg_loading')}</p>
         </div>
       </div>
     );
@@ -1505,7 +1505,7 @@ export default function POSScreen() {
                     )}
                   >
                     <Layers className="w-4 h-4" />
-                    Collections
+                    {t('pos_collections')}
                   </button>
                   <ChevronRight className="w-4 h-4" />
                   <span className={cn(
@@ -1513,7 +1513,7 @@ export default function POSScreen() {
                     currentDesign === DESIGNS.MODERN ? "text-purple-900" :
                       currentDesign === DESIGNS.MINIMAL ? "text-black" :
                         currentDesign === DESIGNS.LEGACY ? "text-orange-800" : "text-brand-navy"
-                  )}>{selectedCategory.name_fr}</span>
+                  )}>{language === 'nl' ? (selectedCategory.name_nl || selectedCategory.name_fr) : selectedCategory.name_fr}</span>
                   <Badge
                     variant="secondary"
                     className={cn(
@@ -1539,7 +1539,7 @@ export default function POSScreen() {
                       currentDesign === DESIGNS.LEGACY ? "text-orange-500" : "text-muted-foreground"
                 )} />
                 <Input
-                  placeholder={posViewMode === "collections" ? "Rechercher une collection..." : "Rechercher SKU, nom... / Zoek SKU, naam..."}
+                  placeholder={posViewMode === "collections" ? t('search_collection') : `${t('search')} SKU, ${t('price').toLowerCase()}...`}
                   className={cn(
                     "pl-10 h-12 text-base search-input",
                     currentDesign === DESIGNS.MODERN ? "bg-purple-50/50 border-purple-200 rounded-2xl focus:ring-purple-400 focus:border-purple-400" :
@@ -1560,7 +1560,7 @@ export default function POSScreen() {
                     size="sm"
                     className="h-8 px-2"
                     onClick={() => updateGridSize('small')}
-                    title="Petite taille"
+                    title={t('pos_grid_small')}
                   >
                     <div className="grid grid-cols-3 gap-0.5 w-3 h-3">
                       {Array(9).fill(0).map((_, i) => (
@@ -1573,7 +1573,7 @@ export default function POSScreen() {
                     size="sm"
                     className="h-8 px-2"
                     onClick={() => updateGridSize('medium')}
-                    title="Taille moyenne"
+                    title={t('pos_grid_medium')}
                   >
                     <div className="grid grid-cols-2 gap-0.5 w-3 h-3">
                       {Array(4).fill(0).map((_, i) => (
@@ -1586,7 +1586,7 @@ export default function POSScreen() {
                     size="sm"
                     className="h-8 px-2"
                     onClick={() => updateGridSize('large')}
-                    title="Grande taille"
+                    title={t('pos_grid_large')}
                   >
                     <div className="w-3 h-3 bg-current rounded-[1px]" />
                   </Button>
@@ -1607,7 +1607,7 @@ export default function POSScreen() {
                   )}
                   onClick={() => setSelectedSize(null)}
                 >
-                  Toutes tailles
+                  {t('pos_all_sizes')}
                 </Button>
                 {availableSizes.slice(0, 20).map((size) => (
                   <Button
@@ -1643,11 +1643,11 @@ export default function POSScreen() {
               <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-3">
                 {loading ? (
                   <div className="col-span-full text-center py-12 text-muted-foreground">
-                    Chargement...
+                    {t('msg_loading')}
                   </div>
                 ) : filteredCategories.length === 0 ? (
                   <div className="col-span-full text-center py-12 text-muted-foreground">
-                    {searchQuery ? "Aucune collection trouvée" : "Aucune catégorie disponible"}
+                    {searchQuery ? t('pos_no_results_collection') : t('msg_no_results')}
                   </div>
                 ) : (
                   filteredCategories.map((category) => (
@@ -1690,7 +1690,7 @@ export default function POSScreen() {
               {filteredProducts.length === 0 && !loadingProducts ? (
                 <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
                   <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                  <p>{searchQuery ? "Aucun produit trouvé" : "Aucun produit dans cette collection"}</p>
+                  <p>{searchQuery ? t('pos_no_results_product') : t('pos_no_products_category')}</p>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1703,7 +1703,7 @@ export default function POSScreen() {
                     onClick={goBackToCollections}
                   >
                     <ArrowLeft className="w-4 h-4 mr-1" />
-                    Retour aux collections
+                    {t('pos_back_to_collections')}
                   </Button>
                 </div>
               ) : (
@@ -1792,9 +1792,9 @@ export default function POSScreen() {
       <Dialog open={showDiscountDialog} onOpenChange={setShowDiscountDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Remise globale / Globale korting</DialogTitle>
+            <DialogTitle>{t('pos_percentage')} / {t('pos_fixed_amount')}</DialogTitle>
             <DialogDescription>
-              Appliquer une remise sur le total / Korting toepassen op totaal
+              {t('discount')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1805,7 +1805,7 @@ export default function POSScreen() {
                 className={discountInput.type === "percent" ? "text-white" : ""}
                 onClick={() => setDiscountInput(prev => ({ ...prev, type: "percent" }))}
               >
-                Pourcentage (%)
+                {t('pos_percentage')}
               </Button>
               <Button
                 variant={discountInput.type === "fixed" ? "default" : "outline"}
@@ -1813,7 +1813,7 @@ export default function POSScreen() {
                 className={discountInput.type === "fixed" ? "text-white" : ""}
                 onClick={() => setDiscountInput(prev => ({ ...prev, type: "fixed" }))}
               >
-                Montant fixe (€)
+                {t('pos_fixed_amount')}
               </Button>
             </div>
             <Input
@@ -1827,10 +1827,10 @@ export default function POSScreen() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDiscountDialog(false)}>
-              Annuler
+              {t('cancel')}
             </Button>
             <Button className="bg-brand-orange hover:bg-brand-orange/90" onClick={handleApplyDiscount}>
-              Appliquer / Toepassen
+              {t('pos_apply')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1840,14 +1840,14 @@ export default function POSScreen() {
       <Dialog open={showQuickAddProduct} onOpenChange={setShowQuickAddProduct}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Ajouter un produit rapide</DialogTitle>
+            <DialogTitle>{t('pos_quick_add_title')}</DialogTitle>
             <DialogDescription>
-              Ajouter un produit au panier sans l'enregistrer
+              {t('pos_quick_add_desc')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium mb-1 block">Nom du produit *</label>
+              <label className="text-sm font-medium mb-1 block">{t('pos_product_name')} *</label>
               <Input
                 value={quickProductData.name}
                 onChange={(e) => setQuickProductData(prev => ({ ...prev, name: e.target.value }))}
@@ -1857,7 +1857,7 @@ export default function POSScreen() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium mb-1 block">Prix unitaire *</label>
+                <label className="text-sm font-medium mb-1 block">{t('pos_unit_price')} *</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
                   <Input
@@ -1871,7 +1871,7 @@ export default function POSScreen() {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">Quantité</label>
+                <label className="text-sm font-medium mb-1 block">{t('quantity')}</label>
                 <Input
                   type="number"
                   min="1"
@@ -1881,7 +1881,7 @@ export default function POSScreen() {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">TVA %</label>
+              <label className="text-sm font-medium mb-1 block">{t('vat')} %</label>
               <select
                 className="w-full h-10 border rounded-md px-3"
                 value={quickProductData.vat_rate}
@@ -1896,14 +1896,14 @@ export default function POSScreen() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowQuickAddProduct(false)}>
-              Annuler
+              {t('cancel')}
             </Button>
             <Button
               className="bg-brand-orange hover:bg-brand-orange/90"
               onClick={handleQuickAddProduct}
             >
               <Plus className="w-4 h-4 mr-2" />
-              Ajouter au panier
+              {t('pos_add_to_cart')}
             </Button>
           </DialogFooter>
         </DialogContent>

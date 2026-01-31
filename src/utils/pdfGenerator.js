@@ -8,7 +8,7 @@ const COMPANY = {
   city: "1700 Dilbeek, Belgique",
   vat: "BE 1028.386.674",
   phone: "+32 2 449 81 22",
-  email: "info@alphaco.be",
+  email: "info@alphanco.be",
   hours: "Lu-Ve 08:00-17:30, Sa 09:00-13:00"
 };
 
@@ -81,16 +81,16 @@ export const generateReceiptPDF = (sale, customer = null) => {
   if (customer || sale.customer_name) {
     doc.setFillColor(247, 250, 252);
     doc.rect(margin, y, pageWidth - margin * 2, 20, "F");
-    
+
     doc.setTextColor(...navyBlue);
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text("Client / Klant:", margin + 5, y + 8);
-    
+
     doc.setFont("helvetica", "normal");
     const customerName = customer?.name || sale.customer_name || "Client comptoir";
     doc.text(customerName, margin + 5, y + 14);
-    
+
     y += 25;
   }
 
@@ -102,33 +102,33 @@ export const generateReceiptPDF = (sale, customer = null) => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  
+
   doc.text("SKU", margin + 3, y + 5.5);
   doc.text("Description", margin + 35, y + 5.5);
   doc.text("Qté", margin + 100, y + 5.5);
   doc.text("Prix", margin + 120, y + 5.5);
   doc.text("Total", pageWidth - margin - 3, y + 5.5, { align: "right" });
-  
+
   y += 10;
 
   // Table rows
   doc.setTextColor(30, 30, 30);
   doc.setFont("helvetica", "normal");
-  
+
   sale.items.forEach((item, idx) => {
     // Alternate row color
     if (idx % 2 === 1) {
       doc.setFillColor(250, 250, 250);
       doc.rect(margin, y - 1, pageWidth - margin * 2, 8, "F");
     }
-    
+
     let lineSubtotal = item.qty * item.unit_price;
     if (item.discount_type === "percent") {
       lineSubtotal -= lineSubtotal * (item.discount_value / 100);
     } else if (item.discount_type === "fixed") {
       lineSubtotal -= item.discount_value;
     }
-    
+
     doc.setTextColor(30, 30, 30);
     doc.setFontSize(8);
     doc.text(item.sku.substring(0, 15), margin + 3, y + 4);
@@ -136,7 +136,7 @@ export const generateReceiptPDF = (sale, customer = null) => {
     doc.text(item.qty.toString(), margin + 100, y + 4);
     doc.text(`€${item.unit_price.toFixed(2)}`, margin + 120, y + 4);
     doc.text(`€${lineSubtotal.toFixed(2)}`, pageWidth - margin - 3, y + 4, { align: "right" });
-    
+
     y += 8;
   });
 
@@ -184,8 +184,8 @@ export const generateReceiptPDF = (sale, customer = null) => {
   if (sale.global_discount_value > 0) {
     doc.text("Remise globale:", totalsX + 5, y + 7);
     doc.text(
-      sale.global_discount_type === "percent" 
-        ? `-${sale.global_discount_value}%` 
+      sale.global_discount_type === "percent"
+        ? `-${sale.global_discount_value}%`
         : `-€${sale.global_discount_value.toFixed(2)}`,
       totalsX + totalsWidth - 5,
       y + 7,
@@ -217,18 +217,18 @@ export const generateReceiptPDF = (sale, customer = null) => {
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text("Paiement / Betaling:", margin, y);
-    
+
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(...gray);
-    
+
     sale.payments.forEach((payment, idx) => {
       const methodLabel = {
         cash: "Espèces / Cash",
         card: "Carte / Kaart",
         bank_transfer: "Virement / Overschrijving"
       }[payment.method] || payment.method;
-      
+
       doc.text(`${methodLabel}: €${payment.amount.toFixed(2)}`, margin, y + 7 + (idx * 5));
     });
   }
@@ -267,7 +267,7 @@ export const generateReceiptPDF = (sale, customer = null) => {
 
   // Save the PDF
   doc.save(`${sale.number}-receipt.pdf`);
-  
+
   return doc;
 };
 
@@ -294,6 +294,7 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
   }
 
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 15;
   let y = margin;
 
@@ -301,27 +302,29 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
   const navyBlue = [26, 54, 93];
   const orange = [255, 107, 53];
   const gray = [100, 116, 139];
+  const lightGray = [248, 250, 252];
 
-  // Header with company info
-  doc.setFillColor(...navyBlue);
-  doc.rect(0, 0, pageWidth, 45, "F");
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(20);
+  // Header - Simple text version matching DocumentViewer
+  doc.setTextColor(...navyBlue);
+  doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.text(COMPANY.name, margin, 15);
+  doc.text("ALPHA&CO", margin, y + 8);
 
-  doc.setFontSize(10);
+  // Right: Opening hours
+  doc.setTextColor(...gray);
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "bold");
+  doc.text("Les heures d'ouverture / Openingsuren", pageWidth - margin, y + 5, { align: "right" });
+
   doc.setFont("helvetica", "normal");
-  doc.text(COMPANY.subtitle, margin, 22);
+  doc.text("Lu-Ve / Ma-Vr: 08h00 - 17h30", pageWidth - margin, y + 10, { align: "right" });
+  doc.text("Sa / Za: 09h00 - 13h00", pageWidth - margin, y + 14, { align: "right" });
+  doc.text("Tél: +32 2 449 81 22", pageWidth - margin, y + 22, { align: "right" });
+  doc.text("info@alphanco.be", pageWidth - margin, y + 26, { align: "right" });
 
-  doc.setFontSize(8);
-  doc.text(COMPANY.address, margin, 28);
-  doc.text(COMPANY.city, margin, 32);
-  doc.text(`TVA: ${COMPANY.vat}`, margin, 36);
-  doc.text(`Tél: ${COMPANY.phone}`, margin, 40);
+  y = 35;
 
-  // Document type and number
+  // Document Title centered
   const docTypeLabels = {
     quote: "DEVIS / OFFERTE",
     purchase_order: "BON DE COMMANDE / BESTELBON",
@@ -331,52 +334,128 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
     credit_note: "NOTE DE CRÉDIT / CREDITNOTA",
     delivery_note: "BON DE LIVRAISON / LEVERINGSBON"
   };
-  
+
   const docTypeLabel = docTypeLabels[document.doc_type] || "DOCUMENT";
-  
-  doc.setTextColor(...orange);
-  doc.setFontSize(16);
+
+  doc.setTextColor(...navyBlue);
+  doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text(docTypeLabel, pageWidth - margin, 20, { align: "right" });
+  doc.text(docTypeLabel, pageWidth / 2, y, { align: "center" });
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(12);
-  doc.text(document.number, pageWidth - margin, 28, { align: "right" });
+  y += 6;
 
-  const dateStr = new Date(document.date).toLocaleDateString("fr-BE");
-  doc.setFontSize(9);
-  doc.text(`Date / Datum: ${dateStr}`, pageWidth - margin, 34, { align: "right" });
-  
-  // Add reference if exists
-  if (document.customer_reference) {
-    doc.text(`Référence / Referentie: ${document.customer_reference}`, pageWidth - margin, 38, { align: "right" });
-  }
-  
-  // Add due date for invoices
-  if (document.doc_type === 'invoice' && document.due_date) {
-    const dueDateStr = new Date(document.due_date).toLocaleDateString("fr-BE");
-    doc.text(`Date d'échéance / Vervaldatum: ${dueDateStr}`, pageWidth - margin, document.customer_reference ? 42 : 38, { align: "right" });
-  }
+  // Document number and date centered
+  doc.setTextColor(...gray);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  const dateStr = new Date(document.date || document.created_at).toLocaleDateString("fr-BE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  doc.text(`${document.number} • ${dateStr}`, pageWidth / 2, y, { align: "center" });
 
-  y = 55;
+  y += 12;
 
-  // Customer info
+  // Two column boxes: Vendeur / Client
+  const boxWidth = (pageWidth - 2 * margin - 10) / 2;
+  const boxHeight = 35;
+
+  // Vendeur box
+  doc.setDrawColor(...navyBlue);
+  doc.setLineWidth(0.5);
+  doc.rect(margin, y, boxWidth, boxHeight);
+
+  doc.setTextColor(...navyBlue);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.text("VENDEUR / VERKOPER", margin + 5, y + 6);
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...gray);
+  doc.setFontSize(8);
+  doc.text("ALPHA & CO Bouwmaterialen BRL", margin + 5, y + 12);
+  doc.text("Ninoofsesteenweg 77-79", margin + 5, y + 16);
+  doc.text("1700 Dilbeek", margin + 5, y + 20);
+  doc.text("TVA: BE 1028.386.674", margin + 5, y + 26);
+  doc.text("www.alphanco.be", margin + 5, y + 30);
+
+  // Client box
+  const clientX = margin + boxWidth + 10;
+  doc.setDrawColor(...navyBlue);
+  doc.rect(clientX, y, boxWidth, boxHeight);
+
+  doc.setTextColor(...navyBlue);
+  doc.setFont("helvetica", "bold");
+  doc.text("CLIENT / KLANT", clientX + 5, y + 6);
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...gray);
   if (document.customer_name) {
-    doc.setFillColor(240, 240, 240);
-    doc.rect(margin, y, pageWidth - 2 * margin, 25, "F");
-
-    doc.setTextColor(...navyBlue);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("Client / Klant:", margin + 5, y + 7);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(...gray);
-    doc.text(document.customer_name, margin + 5, y + 13);
+    doc.text(document.customer_name, clientX + 5, y + 12);
+    if (document.customer_address) {
+      doc.text(document.customer_address.substring(0, 40), clientX + 5, y + 16);
+    }
+    if (document.customer_vat) {
+      doc.text(`TVA: ${document.customer_vat}`, clientX + 5, y + 22);
+    }
+  } else {
+    doc.text("Client comptoir", clientX + 5, y + 12);
   }
 
-  y += 35;
+  y += boxHeight + 8;
+
+  // Meta Row Table (Date, N° facture, Référence, Date d'échéance)
+  doc.setFillColor(241, 245, 249); // slate-100
+  doc.rect(margin, y, pageWidth - 2 * margin, 6, "F");
+
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.rect(margin, y, pageWidth - 2 * margin, 12); // Outer border
+
+  const colWidth = (pageWidth - 2 * margin) / 4;
+
+  // Headers
+  doc.setTextColor(...gray);
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "bold");
+  doc.text("Date", margin + 2, y + 4);
+  doc.text(`N° de ${document.doc_type === 'quote' ? 'devis' : 'facture'}`, margin + colWidth + 2, y + 4);
+  doc.text("Référence", margin + colWidth * 2 + 2, y + 4);
+  doc.text("Date d'échéance", margin + colWidth * 3 + 2, y + 4);
+
+  // Vertical lines
+  doc.line(margin + colWidth, y, margin + colWidth, y + 12);
+  doc.line(margin + colWidth * 2, y, margin + colWidth * 2, y + 12);
+  doc.line(margin + colWidth * 3, y, margin + colWidth * 3, y + 12);
+
+  // Horizontal line between header and data
+  doc.line(margin, y + 6, pageWidth - margin, y + 6);
+
+  // Data row
+  doc.setFont("helvetica", "normal");
+  doc.text(new Date(document.date || document.created_at).toLocaleDateString('fr-BE'), margin + 2, y + 10);
+  doc.setFont("helvetica", "bold");
+  doc.text(document.number, margin + colWidth + 2, y + 10);
+  doc.setFont("helvetica", "normal");
+  doc.text(document.customer_reference || '—', margin + colWidth * 2 + 2, y + 10);
+
+  // Calculate due date
+  let dueDateStr = '—';
+  if (document.due_date) {
+    dueDateStr = new Date(document.due_date).toLocaleDateString('fr-BE');
+  } else if (document.doc_type === 'invoice') {
+    const paymentTerms = document.payment_terms || 30;
+    const invoiceDate = new Date(document.date || document.created_at);
+    const dueDate = new Date(invoiceDate);
+    dueDate.setDate(dueDate.getDate() + paymentTerms);
+    dueDateStr = dueDate.toLocaleDateString('fr-BE');
+  }
+  doc.text(dueDateStr, margin + colWidth * 3 + 2, y + 10);
+
+  y += 18;
 
   // Items table header - Bilingual
   doc.setFillColor(...navyBlue);
@@ -385,27 +464,27 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
-  
+
   // Column: REF/ART - DESCRIPTION
   doc.text("REF / ART", margin + 3, y + 5);
   doc.text("DESCRIPTION", margin + 3, y + 9);
-  
+
   // Column: QUANTITÉ / HOEVEELHEID
   doc.text("QUANTITÉ", pageWidth - 85, y + 5);
   doc.text("HOEVEEL", pageWidth - 85, y + 9);
-  
+
   // Column: PRIX UNIT. / EENHEIDS
   doc.text("PRIX UNIT.", pageWidth - 65, y + 5);
   doc.text("PRIJS", pageWidth - 65, y + 9);
-  
+
   // Column: REMISE / KORTING
   doc.text("REMISE", pageWidth - 45, y + 5);
   doc.text("KORTING", pageWidth - 45, y + 9);
-  
+
   // Column: TVA / BTW
   doc.text("TVA %", pageWidth - 27, y + 5);
   doc.text("BTW %", pageWidth - 27, y + 9);
-  
+
   // Column: TOTAL TTC / TOTAAL INCL
   doc.text("TOTAL TTC", pageWidth - margin - 3, y + 5, { align: "right" });
   doc.text("TOTAAL", pageWidth - margin - 3, y + 9, { align: "right" });
@@ -446,26 +525,26 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
     // REF/ART - SKU or EAN
     const refText = item.sku || item.ean || '—';
     doc.text(refText, margin + 3, y + 2);
-    
+
     // DESCRIPTION
     doc.text(item.name || item.description, margin + 18, y + 2);
-    
+
     // QUANTITÉ
     doc.text(item.qty.toString(), pageWidth - 85, y + 2);
-    
+
     // PRIX UNIT.
     doc.text(`€${item.unit_price.toFixed(2)}`, pageWidth - 65, y + 2);
-    
+
     // REMISE
-    const discountText = item.discount_type === 'percent' 
-      ? `${item.discount_value}%` 
+    const discountText = item.discount_type === 'percent'
+      ? `${item.discount_value}%`
       : (item.discount_type === 'fixed' ? `€${item.discount_value.toFixed(2)}` : '—');
     doc.text(discountText, pageWidth - 45, y + 2);
-    
+
     // TVA %
     const vatRate = item.vat_rate || 21;
     doc.text(`${vatRate}%`, pageWidth - 27, y + 2);
-    
+
     // TOTAL TTC
     doc.text(`€${lineTotal.toFixed(2)}`, pageWidth - margin - 3, y + 2, { align: "right" });
 
@@ -506,13 +585,13 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
 
   // Global discount
   if (document.global_discount_type && document.global_discount_value > 0) {
-    const discountLabel = document.global_discount_type === 'percent' 
-      ? `Remise / Korting (${document.global_discount_value}%):` 
+    const discountLabel = document.global_discount_type === 'percent'
+      ? `Remise / Korting (${document.global_discount_value}%):`
       : 'Remise / Korting:';
     const discountAmount = document.global_discount_type === 'percent'
       ? (subtotal / (1 - document.global_discount_value / 100)) * (document.global_discount_value / 100)
       : document.global_discount_value;
-    
+
     doc.text(discountLabel, totalsX + 5, y + 14);
     doc.text(`-€${discountAmount.toFixed(2)}`, totalsX + totalsWidth - 5, y + 14, { align: "right" });
   }
@@ -538,18 +617,18 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text("Paiement / Betaling:", margin, y);
-    
+
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(...gray);
-    
+
     document.payments.forEach((payment, idx) => {
       const methodLabel = {
         cash: "Espèces / Cash",
         card: "Carte / Kaart",
         bank_transfer: "Virement / Overschrijving"
       }[payment.method] || payment.method;
-      
+
       doc.text(`${methodLabel}: €${payment.amount.toFixed(2)}`, margin, y + 7 + (idx * 5));
     });
   }
@@ -589,7 +668,7 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
   doc.setTextColor(...gray);
   doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
-  
+
   // Payment terms for Invoice
   if (document.doc_type === 'invoice') {
     doc.text(
@@ -618,13 +697,13 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
     );
     doc.setFontSize(6.5);
     doc.text(
-      "Conditions générales : voir page 2 (CGV) / https://alphaco.be/cgv | Algemene voorwaarden: zie pagina 2 (AV) / https://alphaco.be/av",
+      "Conditions générales : voir page 2 (CGV) / https://alphanco.be/cgv | Algemene voorwaarden: zie pagina 2 (AV) / https://alphanco.be/av",
       pageWidth / 2,
       footerY + 13,
       { align: "center", maxWidth: pageWidth - 2 * margin }
     );
   }
-  
+
   // Quote validity
   if (document.doc_type === 'quote') {
     doc.text(
@@ -641,13 +720,13 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
     );
     doc.setFontSize(6.5);
     doc.text(
-      "Conditions générales : voir page 2 / https://alphaco.be/cgv | Algemene voorwaarden: zie pagina 2 / https://alphaco.be/av",
+      "Conditions générales : voir page 2 / https://alphanco.be/cgv | Algemene voorwaarden: zie pagina 2 / https://alphanco.be/av",
       pageWidth / 2,
       footerY + 9,
       { align: "center", maxWidth: pageWidth - 2 * margin }
     );
   }
-  
+
   // Company info line at bottom
   doc.setFontSize(7);
   doc.text(
@@ -668,25 +747,25 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
   if (document.doc_type === 'invoice' || document.doc_type === 'quote') {
     doc.addPage();
     let y2 = margin;
-    
+
     // Add note at top for manual duplex
     doc.setTextColor(150, 150, 150);
     doc.setFontSize(7);
     doc.setFont("helvetica", "italic");
     doc.text("Page 2 / Pagina 2 - À imprimer au verso / Aan achterzijde te drukken", pageWidth / 2, y2, { align: "center" });
     y2 += 5;
-    
+
     // French Terms - CGV
     doc.setTextColor(...navyBlue);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text("CONDITIONS GÉNÉRALES DE VENTE (CGV)", pageWidth / 2, y2, { align: "center" });
     y2 += 10;
-    
+
     doc.setTextColor(...gray);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    
+
     const cgvText = [
       "Champ d'application : Les présentes CGV s'appliquent à toutes nos offres, devis, commandes et factures.",
       "",
@@ -706,7 +785,7 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
       "",
       "Garantie : Selon la garantie légale et/ou fabricant ; exclusions : mauvaise utilisation, usure normale."
     ];
-    
+
     cgvText.forEach(line => {
       if (y2 > 270) {
         doc.addPage();
@@ -715,20 +794,20 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
       doc.text(line, margin, y2, { maxWidth: pageWidth - 2 * margin });
       y2 += line === "" ? 2 : 4;
     });
-    
+
     y2 += 5;
-    
+
     // Dutch Terms - AV
     doc.setTextColor(...navyBlue);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text("ALGEMENE VOORWAARDEN (AV)", pageWidth / 2, y2, { align: "center" });
     y2 += 10;
-    
+
     doc.setTextColor(...gray);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    
+
     const avText = [
       "Toepassing: Deze AV gelden voor al onze offertes, bestellingen en facturen.",
       "",
@@ -748,7 +827,7 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
       "",
       "Garantie: Wettelijke en/of fabrieksgarantie; uitsluitingen: verkeerd gebruik, normale slijtage."
     ];
-    
+
     avText.forEach(line => {
       if (y2 > 270) {
         doc.addPage();
@@ -781,6 +860,6 @@ export const generateDocumentPDF = (document, openInNewTab = false) => {
     // Download
     doc.save(filename);
   }
-  
+
   return doc;
 };

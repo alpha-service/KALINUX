@@ -2370,6 +2370,325 @@ function generatePeppolCreditNoteUBL(creditNote, invoice, customer, company) {
 </CreditNote>`;
 }
 
+// ========================================
+// THERMAL PRINTER API (ESC/POS RAW)
+// ========================================
+
+const { exec } = require('child_process');
+const os = require('os');
+
+// Printer configuration
+let printerConfig = {
+  printerName: 'appPOS80AMUSE',
+  enabled: true
+};
+
+// ESC/POS Command Builder
+function buildESCPOSBuffer(document) {
+  const commands = [];
+
+  // Helper to add bytes
+  const addBytes = (arr) => commands.push(Buffer.from(arr));
+  const addText = (str) => commands.push(Buffer.from(str, 'utf8'));
+
+  // ESC @ - Initialize
+  addBytes([0x1B, 0x40]);
+
+  // Center align
+  addBytes([0x1B, 0x61, 0x01]);
+
+  // Double size
+  addBytes([0x1D, 0x21, 0x11]);
+
+  // Bold on
+  addBytes([0x1B, 0x45, 0x01]);
+
+  addText('ALPHA&CO');
+  addBytes([0x0A]);
+
+  // Bold off, normal size
+  addBytes([0x1B, 0x45, 0x00]);
+  addBytes([0x1D, 0x21, 0x00]);
+
+  addText('Ninoofsesteenweg 77-79');
+  addBytes([0x0A]);
+  addText('1700 Dilbeek');
+  addBytes([0x0A]);
+  addText('TVA: BE 1028.386.674');
+  addBytes([0x0A, 0x0A]);
+
+  // Left align
+  addBytes([0x1B, 0x61, 0x00]);
+
+  // Bold on
+  addBytes([0x1B, 0x45, 0x01]);
+  addText('DOC: ' + (document.number || 'N/A'));
+  addBytes([0x0A]);
+  addBytes([0x1B, 0x45, 0x00]);
+
+  // Date
+  const date = document.date || document.created_at;
+  if (date) {
+    const d = new Date(date);
+    addText('Date: ' + d.toLocaleDateString('fr-BE') + ' ' + d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }));
+    addBytes([0x0A]);
+  }
+
+  if (document.customer_name) {
+    addText('Client: ' + document.customer_name);
+    addBytes([0x0A]);
+  }
+
+  // Separator
+  addText('================================================');
+  addBytes([0x0A]);
+
+  // Items
+  const items = document.items || [];
+  items.forEach(item => {
+    const qty = item.qty || item.quantity || 0;
+    const price = item.unit_price || 0;
+    const total = qty * price;
+    const name = (item.name || item.name_fr || item.description || 'Article').substring(0, 32);
+
+    addText(name);
+    addBytes([0x0A]);
+    addText('  ' + qty + ' x ' + price.toFixed(2) + ' EUR');
+    addBytes([0x0A]);
+
+    // Right align for total
+    addBytes([0x1B, 0x61, 0x02]);
+    addText(total.toFixed(2) + ' EUR');
+    addBytes([0x0A]);
+    addBytes([0x1B, 0x61, 0x00]);
+  });
+
+  // Separator
+  addText('================================================');
+  addBytes([0x0A]);
+
+  // Totals
+  const total = document.total || items.reduce((sum, item) => {
+    const q = item.qty || item.quantity || 0;
+    const p = item.unit_price || 0;
+    return sum + (p * q);
+  }, 0);
+
+  const vatAmount = document.vat_total !== undefined ? document.vat_total : (total * 0.21 / 1.21);
+
+  addBytes([0x1B, 0x45, 0x01]); // Bold
+  addText('SOUS-TOTAL HT:');
+  addBytes([0x1B, 0x61, 0x02]); // Right
+  addText((total - vatAmount).toFixed(2) + ' EUR');
+  addBytes([0x0A]);
+
+  addBytes([0x1B, 0x61, 0x00]); // Left
+  addText('TVA 21%:');
+  addBytes([0x1B, 0x61, 0x02]); // Right
+  addText(vatAmount.toFixed(2) + ' EUR');
+  addBytes([0x0A]);
+
+  // Double size for total
+  addBytes([0x1B, 0x61, 0x00]); // Left
+  addBytes([0x1D, 0x21, 0x11]); // Double size
+  addText('TOTAL TTC:');
+  addBytes([0x1B, 0x61, 0x02]); // Right
+  addText(total.toFixed(2) + ' EUR');
+  addBytes([0x0A]);
+  addBytes([0x1D, 0x21, 0x00]); // Normal size
+  addBytes([0x1B, 0x45, 0x00]); // Bold off
+
+  // Separator
+  addBytes([0x1B, 0x61, 0x00]);
+  addText('================================================');
+  addBytes([0x0A]);
+
+  // Footer
+  addBytes([0x1B, 0x61, 0x01]); // Center
+  addBytes([0x0A]);
+  addText('Merci pour votre visite!');
+  addBytes([0x0A]);
+  addText('www.alphanco.be');
+  addBytes([0x0A, 0x0A, 0x0A]);
+
+  // Partial cut
+  addBytes([0x1D, 0x56, 0x01]);
+
+  return Buffer.concat(commands);
+}
+
+// Print via Windows RAW API
+function printViaWindowsRAW(printerName, buffer) {
+  return new Promise((resolve, reject) => {
+    const tempFile = path.join(os.tmpdir(), 'escpos_' + Date.now() + '.bin');
+
+    try {
+      fs.writeFileSync(tempFile, buffer);
+      console.log('Temp file created: ' + tempFile + ' (' + buffer.length + ' bytes)');
+
+      // PowerShell script using Windows Print Spooler RAW API
+      const psScript = `
+$ErrorActionPreference = 'Stop'
+$tempFile = '${tempFile.replace(/\\/g, '\\\\')}'
+$printerName = '${printerName}'
+
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public class RawPrinter {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public class DOCINFOA {
+        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+    }
+
+    [DllImport("winspool.drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi)]
+    public static extern bool OpenPrinter(string szPrinter, out IntPtr hPrinter, IntPtr pd);
+
+    [DllImport("winspool.drv", EntryPoint = "ClosePrinter", SetLastError = true)]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", EntryPoint = "StartDocPrinterA", SetLastError = true, CharSet = CharSet.Ansi)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
+
+    [DllImport("winspool.drv", EntryPoint = "EndDocPrinter", SetLastError = true)]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", EntryPoint = "StartPagePrinter", SetLastError = true)]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", EntryPoint = "EndPagePrinter", SetLastError = true)]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.drv", EntryPoint = "WritePrinter", SetLastError = true)]
+    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
+
+    public static bool SendBytesToPrinter(string szPrinterName, byte[] pBytes) {
+        IntPtr hPrinter = IntPtr.Zero;
+        int dwWritten = 0;
+        bool bSuccess = false;
+
+        DOCINFOA di = new DOCINFOA();
+        di.pDocName = "ESC/POS RAW Document";
+        di.pDataType = "RAW";
+
+        if (OpenPrinter(szPrinterName, out hPrinter, IntPtr.Zero)) {
+            if (StartDocPrinter(hPrinter, 1, di)) {
+                if (StartPagePrinter(hPrinter)) {
+                    IntPtr pUnmanagedBytes = Marshal.AllocCoTaskMem(pBytes.Length);
+                    Marshal.Copy(pBytes, 0, pUnmanagedBytes, pBytes.Length);
+                    bSuccess = WritePrinter(hPrinter, pUnmanagedBytes, pBytes.Length, out dwWritten);
+                    Marshal.FreeCoTaskMem(pUnmanagedBytes);
+                    EndPagePrinter(hPrinter);
+                }
+                EndDocPrinter(hPrinter);
+            }
+            ClosePrinter(hPrinter);
+        }
+        return bSuccess;
+    }
+}
+'@ -ErrorAction SilentlyContinue
+
+$bytes = [System.IO.File]::ReadAllBytes($tempFile)
+$result = [RawPrinter]::SendBytesToPrinter($printerName, $bytes)
+if ($result) {
+    Write-Output "SUCCESS"
+} else {
+    throw "Failed to send bytes to printer"
+}
+`;
+
+      const psFile = path.join(os.tmpdir(), 'print_' + Date.now() + '.ps1');
+      fs.writeFileSync(psFile, psScript);
+
+      exec('powershell -ExecutionPolicy Bypass -File "' + psFile + '"',
+        { windowsHide: true, timeout: 30000 },
+        function (error, stdout, stderr) {
+          try { fs.unlinkSync(tempFile); } catch (e) { }
+          try { fs.unlinkSync(psFile); } catch (e) { }
+
+          if (error) {
+            console.error('RAW print error:', error.message);
+            reject(new Error('Print failed: ' + (stderr || error.message)));
+          } else if (stdout.indexOf('SUCCESS') !== -1) {
+            console.log('Printed via Windows RAW API');
+            resolve({ success: true });
+          } else {
+            reject(new Error('Print failed: unexpected output'));
+          }
+        }
+      );
+    } catch (error) {
+      try { fs.unlinkSync(tempFile); } catch (e) { }
+      reject(error);
+    }
+  });
+}
+
+// API: Print thermal receipt
+app.post('/api/print/thermal', async (req, res) => {
+  console.log('POST /api/print/thermal');
+
+  try {
+    const document = req.body;
+
+    if (!document) {
+      return res.status(400).json({ error: 'Document data required' });
+    }
+
+    console.log('Printing document:', document.number);
+
+    const buffer = buildESCPOSBuffer(document);
+    console.log('ESC/POS buffer size:', buffer.length, 'bytes');
+
+    await printViaWindowsRAW(printerConfig.printerName, buffer);
+
+    res.json({ success: true, message: 'Printed successfully' });
+  } catch (error) {
+    console.error('Print error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: Get/Set printer config
+app.get('/api/print/config', (req, res) => {
+  console.log('GET /api/print/config');
+  res.json(printerConfig);
+});
+
+app.put('/api/print/config', (req, res) => {
+  console.log('PUT /api/print/config', req.body);
+  printerConfig = { ...printerConfig, ...req.body };
+  res.json(printerConfig);
+});
+
+// API: List Windows printers
+app.get('/api/print/printers', (req, res) => {
+  console.log('GET /api/print/printers');
+
+  exec('powershell -Command "Get-Printer | Select-Object Name, DriverName, PortName | ConvertTo-Json"',
+    { windowsHide: true },
+    (error, stdout, stderr) => {
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      try {
+        let printers = JSON.parse(stdout);
+        if (!Array.isArray(printers)) {
+          printers = [printers];
+        }
+        res.json(printers);
+      } catch (e) {
+        res.json([]);
+      }
+    }
+  );
+});
+
 app.listen(PORT, () => {
   console.log('');
   console.log('🚀 ========================================');

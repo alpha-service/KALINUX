@@ -65,6 +65,7 @@ export default function DocumentDetail() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [showThermalReceipt, setShowThermalReceipt] = useState(false);
   const thermalReceiptRef = useRef(null);
+  const documentViewerRef = useRef(null); // Add ref for DocumentViewer
 
   useEffect(() => {
     fetchDocument();
@@ -136,12 +137,50 @@ export default function DocumentDetail() {
   };
 
   const handlePrint = () => {
+    // Regular document print (PDF-like)
     window.print();
   };
 
-  const handlePrintThermal = () => {
+  const handlePrintThermal = async () => {
+    // Check if running in Electron with ESC/POS support
+    const isElectron = window.electronAPI?.isElectron;
+
+    if (isElectron) {
+      // Use Electron API for direct printing
+      try {
+        console.log('🖨️ Printing via ESC/POS (Electron)');
+        const result = await window.electronAPI.printer.printReceipt(document);
+
+        if (result.success) {
+          toast.success("Ticket imprimé avec succès");
+        } else {
+          toast.error(result.error || "Échec de l'impression");
+        }
+      } catch (error) {
+        console.error('ESC/POS print error:', error);
+        toast.error("Erreur d'impression: " + error.message);
+      }
+    } else {
+      // Use backend API for browser-based printing
+      try {
+        console.log('🖨️ Printing via Backend API');
+        const response = await axios.post(`${API}/print/thermal`, document);
+
+        if (response.data.success) {
+          toast.success("Ticket imprimé avec succès");
+        } else {
+          toast.error(response.data.error || "Échec de l'impression");
+        }
+      } catch (error) {
+        console.error('Backend print error:', error);
+        toast.error("Erreur d'impression: " + (error.response?.data?.error || error.message));
+      }
+    }
+  };
+
+  const fallbackToBrowserPrint = () => {
     // Open thermal receipt in a new window for printing
-    const printWindow = window.open('', '_blank', 'width=302,height=800');
+    const printWindow = window.open('', '_blank', 'width=320,height=800');
     if (printWindow && thermalReceiptRef.current) {
       const receiptContent = thermalReceiptRef.current.innerHTML;
       printWindow.document.write(`
@@ -154,6 +193,16 @@ export default function DocumentDetail() {
               size: 80mm auto;
               margin: 0;
             }
+            @media print {
+              html, body {
+                width: 80mm;
+                background: white;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+            }
             * {
               margin: 0;
               padding: 0;
@@ -161,25 +210,45 @@ export default function DocumentDetail() {
             }
             body {
               font-family: 'Courier New', Courier, monospace;
-              font-size: 11px;
-              line-height: 1.3;
+              font-size: 12px;
+              line-height: 1.4;
               width: 80mm;
               max-width: 80mm;
-              padding: 4mm;
+              padding: 2mm;
+              background: #f0f0f0; /* Light gray for screen preview */
             }
+            .receipt-container {
+              background: white;
+              width: 80mm;
+              min-height: 100%;
+              padding: 4mm;
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+              margin: 0 auto;
+            }
+            @media print {
+              body { background: white; padding: 0; }
+              .receipt-container { 
+                box-shadow: none; 
+                padding: 4mm;
+                margin: 0;
+                width: 100%;
+              }
+            }
+            /* Copy styles from ThermalReceipt */
             .text-center { text-align: center; }
             .text-xs { font-size: 10px; }
             .text-sm { font-size: 12px; }
-            .text-lg { font-size: 14px; }
+            .text-base { font-size: 14px; }
+            .text-lg { font-size: 16px; }
             .font-bold { font-weight: bold; }
             .font-medium { font-weight: 500; }
             .flex { display: flex; }
             .justify-between { justify-content: space-between; }
             .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-            .border-b { border-bottom: 1px dashed black; }
-            .border-t { border-top: 1px dashed black; }
-            .border-black { border-color: black; }
+            .border-b { border-bottom: 1px solid black; }
+            .border-t { border-top: 1px solid black; }
             .border-dashed { border-style: dashed; }
+            .border-black { border-color: black; }
             .pb-1 { padding-bottom: 4px; }
             .pb-2 { padding-bottom: 8px; }
             .mb-1 { margin-bottom: 4px; }
@@ -189,14 +258,21 @@ export default function DocumentDetail() {
             .pt-1 { padding-top: 4px; }
             .opacity-75 { opacity: 0.75; }
             .tracking-wider { letter-spacing: 0.05em; }
+            .text-gray-600 { color: #4b5563; }
+            .text-green-700 { color: #15803d; }
           </style>
         </head>
         <body>
-          ${receiptContent}
+          <div class="receipt-container">
+            ${receiptContent}
+          </div>
           <script>
             window.onload = function() { 
-              window.print(); 
-              window.onafterprint = function() { window.close(); }
+              // Small delay to ensure styles are applied
+              setTimeout(function() {
+                window.print(); 
+                window.onafterprint = function() { window.close(); }
+              }, 250);
             }
           </script>
         </body>
@@ -218,54 +294,196 @@ export default function DocumentDetail() {
     }
   };
 
-  const handleOpenPDFNewTab = async () => {
+  const handleOpenPDFNewTab = () => {
     try {
-      console.log('🔵 Opening PDF for document:', {
-        id: document.id,
-        number: document.number,
-        type: document.doc_type,
-        customer: document.customer_name
-      });
+      console.log('====== OPENING DOCUMENT IN NEW TAB ======');
+      console.log('📝 Document:', document.number, '(', document.doc_type, ')');
+      
+      if (!document) {
+        toast.error("⚠️ Document non chargé");
+        return;
+      }
 
-      // Use frontend PDF generation and open in new tab
-      const { generateDocumentPDF } = await import("@/utils/pdfGenerator");
+      if (!documentViewerRef.current) {
+        toast.error("❌ Document viewer non trouvé");
+        return;
+      }
 
-      // Generate PDF
-      const pdfDoc = generateDocumentPDF(document, false); // Don't auto-open yet
-      const pdfBlob = pdfDoc.output('blob');
-
-      // Create unique URL with cache-busting
-      const timestamp = Date.now();
-      const docId = document.id;
-      const url = URL.createObjectURL(pdfBlob);
-
-      console.log('✅ PDF generated:', {
-        docId,
-        docNumber: document.number,
-        timestamp,
-        blobSize: pdfBlob.size,
-        windowName: `pdf_${docId}_${timestamp}`
-      });
-
-      // Open in new tab with unique name to prevent caching issues
-      const windowName = `pdf_${docId}_${timestamp}`;
-      const newWindow = window.open(url, windowName);
-
-      // Clean up the blob URL after a delay
-      if (newWindow) {
-        setTimeout(() => {
-          URL.revokeObjectURL(url);
-        }, 5000);
-      } else {
-        URL.revokeObjectURL(url);
+      // Get the DocumentViewer HTML from ref
+      const viewerHTML = documentViewerRef.current.innerHTML;
+      
+      // Create a new window
+      const printWindow = window.open('', '_blank', 'width=900,height=1200');
+      
+      if (!printWindow) {
         toast.error("Veuillez autoriser les pop-ups");
         return;
       }
 
-      toast.success("PDF ouvert");
+      // Write the complete HTML with styles
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${document.number} - ${document.doc_type}</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            
+            html, body {
+              width: 100%;
+              height: 100%;
+              overflow: hidden !important;
+            }
+            
+            body {
+              font-family: Inter, system-ui, -apple-system, sans-serif;
+              background: #f8fafc;
+              padding: 20px;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color: #000000 !important;
+            }
+            
+            @media print {
+              * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+              
+              body {
+                background: white;
+                padding: 0;
+              }
+              
+              @page {
+                size: A4;
+                margin: 0;
+              }
+            }
+            
+            /* Import Tailwind-like utilities */
+            .bg-white { background-color: white !important; }
+            .bg-slate-100 { background-color: #f1f5f9 !important; }
+            .bg-slate-50 { background-color: #f8fafc !important; }
+            .bg-black { background-color: #000000 !important; }
+            .bg-blue-900 { background-color: #1e3a8a !important; }
+            .bg-brand-navy { background-color: #1a365d !important; }
+            .bg-brand-orange { background-color: #ff6b35 !important; }
+            .bg-green-50 { background-color: #f0fdf4 !important; }
+            /* Text colors - all black */
+            * { color: #000000 !important; }
+            .text-slate-600 { color: #000000 !important; }
+            .text-slate-700 { color: #000000 !important; }
+            .text-slate-800 { color: #000000 !important; }
+            .text-black { color: #000000 !important; }
+            .text-brand-navy { color: #000000 !important; }
+            .text-red-600 { color: #dc2626 !important; }
+            .text-green-600 { color: #16a34a !important; }
+            .text-green-700 { color: #15803d !important; }
+            .text-orange-600 { color: #ea580c !important; }
+            .text-amber-700 { color: #b45309 !important; }
+            .text-white { color: white !important; }
+            
+            .font-bold { font-weight: 700; }
+            .font-semibold { font-weight: 600; }
+            .font-medium { font-weight: 500; }
+            
+            .text-xs { font-size: 0.75rem; }
+            .text-sm { font-size: 0.875rem; }
+            .text-base { font-size: 1rem; }
+            .text-lg { font-size: 1.125rem; }
+            .text-xl { font-size: 1.25rem; }
+            .text-2xl { font-size: 1.5rem; }
+            
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .text-left { text-align: left; }
+            
+            .flex { display: flex; }
+            .items-start { align-items: flex-start; }
+            .items-center { align-items: center; }
+            .justify-between { justify-content: space-between; }
+            .justify-center { justify-content: center; }
+            
+            .border { border: 1px solid !important; }
+            .border-2 { border-width: 2px !important; }
+            .border-black { border-color: #000000 !important; }
+            .border-slate-300 { border-color: #000000 !important; }
+            .border-slate-200 { border-color: #000000 !important; }
+            .border-b { border-bottom: 1px solid !important; }
+            .border-t { border-top: 1px solid !important; }
+            .border-t-2 { border-top-width: 2px !important; }
+            .border-r { border-right: 1px solid !important; }
+            
+            .rounded { border-radius: 0.25rem; }
+            .rounded-lg { border-radius: 0.5rem; }
+            
+            .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+            
+            .p-2 { padding: 0.5rem; }
+            .p-3 { padding: 0.75rem; }
+            .p-4 { padding: 1rem; }
+            .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+            .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+            
+            .mb-1 { margin-bottom: 0.25rem; }
+            .mb-2 { margin-bottom: 0.5rem; }
+            .mb-4 { margin-bottom: 1rem; }
+            .mb-6 { margin-bottom: 1.5rem; }
+            .mt-2 { margin-top: 0.5rem; }
+            .mt-4 { margin-top: 1rem; }
+            .mt-6 { margin-top: 1.5rem; }
+            
+            .relative { position: relative; }
+            .absolute { position: absolute; }
+            .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+            
+            .pointer-events-none { pointer-events: none; }
+            
+            /* Print styles */
+            @media print {
+              .shadow-lg {
+                box-shadow: none;
+              }
+              
+              body {
+                background: white !important;
+                padding: 0 !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${viewerHTML}
+        </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      
+      // Auto-trigger print dialog after content loads
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 250);
+      };
+      
+      toast.success(`Document ouvert: ${document.number}`);
+      console.log('✅ Document window opened successfully');
+      
     } catch (error) {
-      console.error("PDF open error:", error);
-      toast.error("Erreur lors de l'ouverture du PDF");
+      console.error("❌ Error opening document:", error);
+      toast.error("Erreur lors de l'ouverture du document: " + error.message);
     }
   };
 
@@ -290,19 +508,7 @@ export default function DocumentDetail() {
           <ArrowLeft className="w-4 h-4 mr-2" />
           {t('return')}
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-heading font-bold text-brand-navy">
-              {document.number}
-            </h1>
-            <Badge className={statusConfig.color}>
-              {statusConfig.label}
-            </Badge>
-          </div>
-          <p className="text-muted-foreground">
-            {DOC_TYPE_LABELS[document.doc_type]} • {new Date(document.created_at).toLocaleDateString("fr-BE")}
-          </p>
-        </div>
+        <div className="flex-1" />
         <div className="flex gap-2">
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="w-4 h-4 mr-2" />
@@ -410,7 +616,9 @@ export default function DocumentDetail() {
       </div>
 
       {/* Document Viewer */}
-      <DocumentViewer document={document} />
+      <div ref={documentViewerRef}>
+        <DocumentViewer document={document} />
+      </div>
 
       {/* Payment Dialog */}
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>

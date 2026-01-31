@@ -45,9 +45,15 @@ const API = '/api';
 
 export default function Settings() {
   const [printerEnabled, setPrinterEnabled] = useState(false);
+  const [printerStatus, setPrinterStatus] = useState('checking'); // checking, connected, error
+  const [availablePrinters, setAvailablePrinters] = useState([]);
+  const [selectedPrinter, setSelectedPrinter] = useState(null);
   const [scannerEnabled, setScannerEnabled] = useState(true);
   const { currentDesign, setCurrentDesign, design, appearance, updateAppearance } = useDesign();
   const { currentPreset, setCurrentPreset } = usePOSLayout();
+
+  // Check if running in Electron
+  const isElectron = window.electronAPI?.isElectron;
 
   // Company Settings
   const [companySettings, setCompanySettings] = useState({
@@ -110,6 +116,35 @@ export default function Settings() {
     loadSyncLogs();
     loadUnmappedProducts();
   }, []);
+
+  // Detect available printers (Electron only)
+  useEffect(() => {
+    const isElectron = window.electronAPI?.isElectron;
+    if (isElectron && printerEnabled) {
+      const detectPrinters = async () => {
+        try {
+          setPrinterStatus('checking');
+          const result = await window.electronAPI.printer.listUSB();
+          
+          if (result.success) {
+            setAvailablePrinters(result.printers);
+            setPrinterStatus(result.printers.length > 0 ? 'connected' : 'error');
+            if (result.printers.length > 0) {
+              setSelectedPrinter(result.printers[0]);
+            }
+          } else {
+            setPrinterStatus('error');
+            console.error('Printer detection failed:', result.error);
+          }
+        } catch (error) {
+          setPrinterStatus('error');
+          console.error('Error detecting printers:', error);
+        }
+      };
+      
+      detectPrinters();
+    }
+  }, [printerEnabled]);
 
   const loadCompanySettings = async () => {
     try {
@@ -232,6 +267,21 @@ export default function Settings() {
       console.error("Error saving Shopify settings:", error);
       console.error("Error response:", error.response?.data);
       toast.error(error.response?.data?.message || "Erreur lors de la sauvegarde");
+    }
+  };
+
+  // Printer functions
+  const handleTestPrinter = async () => {
+    try {
+      const result = await window.electronAPI.printer.test();
+      if (result.success) {
+        toast.success("Test d'impression réussi!");
+      } else {
+        toast.error(result.error || "Échec du test d'impression");
+      }
+    } catch (error) {
+      toast.error("Erreur lors du test d'impression");
+      console.error(error);
     }
   };
 
@@ -1250,24 +1300,54 @@ export default function Settings() {
                   <p className="text-sm text-muted-foreground">Impression thermique USB/Réseau</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-amber-600 border-amber-300">
-                    Non configuré
-                  </Badge>
-                  <Switch checked={printerEnabled} onCheckedChange={setPrinterEnabled} />
+                  {!isElectron ? (
+                    <Badge variant="outline" className="text-red-600 border-red-300">
+                      Non disponible
+                    </Badge>
+                  ) : printerStatus === 'checking' ? (
+                    <Badge variant="outline" className="text-amber-600 border-amber-300">
+                      Détection...
+                    </Badge>
+                  ) : printerStatus === 'connected' ? (
+                    <Badge className="bg-green-100 text-green-800">Connecté</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-red-600 border-red-300">
+                      Erreur
+                    </Badge>
+                  )}
+                  <Switch 
+                    checked={printerEnabled} 
+                    onCheckedChange={setPrinterEnabled} 
+                    disabled={!isElectron}
+                  />
                 </div>
               </div>
 
               {printerEnabled && (
-                <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                  <p className="text-sm text-amber-800">
-                    <strong>Module ESC/POS:</strong> Non implémenté dans cette version.
-                    <br />
-                    Utilise actuellement l'impression navigateur (window.print).
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800 mb-3">
+                    <strong>✅ ESC/POS activé:</strong> Impression RAW USB/Réseau
                   </p>
-                  <div className="mt-3 space-y-2">
-                    <Input placeholder="Adresse IP ou port USB" disabled />
-                    <Button variant="outline" size="sm" disabled>Tester connexion</Button>
-                  </div>
+                  {availablePrinters.length > 0 ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-blue-900 mb-1 block">
+                          Imprimante détectée:
+                        </label>
+                        <div className="p-2 bg-white rounded border text-sm font-mono">
+                          VID: 0x{selectedPrinter?.vendorId?.toString(16).toUpperCase()} | 
+                          PID: 0x{selectedPrinter?.productId?.toString(16).toUpperCase()}
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={handleTestPrinter}>
+                        Tester l'impression
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-blue-700">
+                      Aucune imprimante USB détectée. Connectez votre imprimante thermique.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

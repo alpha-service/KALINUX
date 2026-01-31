@@ -1,10 +1,12 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useDesign, DESIGNS } from "@/hooks/useDesign";
+import { useLanguage } from "@/hooks/useLanguage";
 import { FolderOpen } from "lucide-react";
 
 export default function CategoryCard({ category, onSelect }) {
   const { currentDesign, design } = useDesign();
+  const { language } = useLanguage();
 
   return (
     <button
@@ -52,7 +54,7 @@ export default function CategoryCard({ category, onSelect }) {
           currentDesign === DESIGNS.MODERN ? "text-slate-700 group-hover:text-purple-600" :
           currentDesign === DESIGNS.MINIMAL ? "text-black group-hover:text-neutral-600" : "text-brand-navy group-hover:text-brand-orange"
         )}>
-          {category.name_fr}
+          {language === 'nl' ? (category.name_nl || category.name_fr) : category.name_fr}
         </h3>
       </div>
 
