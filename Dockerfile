@@ -1,5 +1,15 @@
 # Stage 1: Build
 FROM node:20-alpine AS builder
+
+# Install build dependencies for native modules
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    gcc \
+    libusb-dev \
+    udev
+
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --legacy-peer-deps --no-audit --no-fund
