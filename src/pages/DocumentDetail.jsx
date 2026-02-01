@@ -42,16 +42,16 @@ const DOC_TYPE_LABELS = {
 };
 
 const STATUS_CONFIG = {
-  draft: { label: "Brouillon", color: "bg-slate-100 text-slate-700" },
-  sent: { label: "Envoyé", color: "bg-blue-100 text-blue-700" },
-  accepted: { label: "Accepté", color: "bg-green-100 text-green-700" },
-  confirmed: { label: "Confirmé", color: "bg-indigo-100 text-indigo-700" },
-  delivered: { label: "Livré", color: "bg-cyan-100 text-cyan-700" },
-  unpaid: { label: "Impayé", color: "bg-red-100 text-red-700" },
-  partially_paid: { label: "Partiellement payé", color: "bg-amber-100 text-amber-700" },
-  paid: { label: "Payé", color: "bg-green-100 text-green-700" },
-  cancelled: { label: "Annulé", color: "bg-gray-100 text-gray-700" },
-  credited: { label: "Crédité", color: "bg-purple-100 text-purple-700" },
+  draft: { label: "Brouillon", color: "bg-neutral-100 text-black" },
+  sent: { label: "Envoyé", color: "bg-zinc-200 text-black" },
+  accepted: { label: "Accepté", color: "bg-black text-white" },
+  confirmed: { label: "Confirmé", color: "bg-slate-300 text-black" },
+  delivered: { label: "Livré", color: "bg-slate-400 text-black" },
+  unpaid: { label: "Impayé", color: "bg-black text-white border border-black" },
+  partially_paid: { label: "Partiellement payé", color: "bg-neutral-300 text-black" },
+  paid: { label: "Payé", color: "bg-black text-white" },
+  cancelled: { label: "Annulé", color: "bg-neutral-100 text-neutral-500" },
+  credited: { label: "Crédité", color: "bg-stone-200 text-black" },
 };
 
 export default function DocumentDetail() {
@@ -376,7 +376,7 @@ export default function DocumentDetail() {
             .bg-slate-100 { background-color: #f1f5f9 !important; }
             .bg-slate-50 { background-color: #f8fafc !important; }
             .bg-black { background-color: #000000 !important; }
-            .bg-blue-900 { background-color: #1e3a8a !important; }
+            .bg-blue-900 { background-color: #000000 !important; }
             .bg-brand-navy { background-color: #1a365d !important; }
             .bg-brand-orange { background-color: #ff6b35 !important; }
             .bg-green-50 { background-color: #f0fdf4 !important; }

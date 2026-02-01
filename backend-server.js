@@ -1265,6 +1265,54 @@ app.post('/api/peppol/test-connection', async (req, res) => {
   }
 });
 
+app.post('/api/documents/:id/send-peppol', async (req, res) => {
+  const { id } = req.params;
+  const doc = documents.find(d => d.id == id);
+  if (!doc) return res.status(404).json({ error: "Document not found" });
+
+  const customer = customers.find(c => c.id == doc.customer_id);
+  if (!customer || !customer.peppol_id) {
+    return res.status(400).json({ error: "Client non configuré pour Peppol (ID Peppol manquant)" });
+  }
+
+  if (!peppyrusSettings.api_key) {
+    return res.status(400).json({ error: "Service Peppol non configuré (Clé API manquante)" });
+  }
+
+  try {
+    const xml = generatePeppolInvoiceUBL(doc, customer, companySettings);
+    
+    // Send to Peppyrus
+    const payload = {
+      receiver_id: customer.peppol_id,
+      document_type: "INVOICE",
+      document_content: Buffer.from(xml).toString('base64'),
+      document_filename: `${doc.number}.xml`,
+      test_mode: peppyrusSettings.test_mode
+    };
+
+    console.log(`[Peppol] Sending document ${doc.number} to ${customer.peppol_id}...`);
+    const response = await peppyrusService.request('/message/send', 'POST', peppyrusSettings.api_key, peppyrusSettings.test_mode, payload);
+    
+    // Update document status
+    doc.peppol_message_id = response.message_id || response.id;
+    doc.peppol_send_status = 'sent';
+    
+    console.log(`[Peppol] Document ${doc.number} sent successfully. ID: ${doc.peppol_message_id}`);
+
+    res.json({
+      success: true,
+      peppol_message_id: doc.peppol_message_id
+    });
+  } catch (error) {
+    console.error('Peppol send failed:', error);
+    res.status(500).json({ 
+      error: "Échec de l'envoi Peppol", 
+      detail: error.message || error.toString() 
+    });
+  }
+});
+
 // Shopify Settings endpoints
 app.get('/api/shopify-settings', (req, res) => {
   console.log('GET /api/shopify-settings');
@@ -2368,6 +2416,115 @@ function generatePeppolCreditNoteUBL(creditNote, invoice, customer, company) {
     </cac:Price>
   </cac:CreditNoteLine>`).join('')}
 </CreditNote>`;
+}
+
+/**
+ * Generate Peppol BIS Billing 3.0 UBL Invoice XML
+ */
+function generatePeppolInvoiceUBL(doc, customer, company) {
+  const formatDate = (date) => new Date(date).toISOString().split('T')[0];
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:CustomizationID>
+  <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
+  <cbc:ID>${doc.number}</cbc:ID>
+  <cbc:IssueDate>${formatDate(doc.date)}</cbc:IssueDate>
+  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+  <cbc:DocumentCurrencyCode>${doc.currency || 'EUR'}</cbc:DocumentCurrencyCode>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cbc:EndpointID schemeID="0196">${company.vat_number}</cbc:EndpointID>
+      <cac:PartyName>
+        <cbc:Name>${company.legal_name}</cbc:Name>
+      </cac:PartyName>
+      <cac:PostalAddress>
+        <cbc:StreetName>${company.street_name}</cbc:StreetName>
+        <cbc:BuildingNumber>${company.building_number}</cbc:BuildingNumber>
+        <cbc:CityName>${company.city}</cbc:CityName>
+        <cbc:PostalZone>${company.postal_code}</cbc:PostalZone>
+        <cac:Country>
+          <cbc:IdentificationCode>${company.country}</cbc:IdentificationCode>
+        </cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyTaxScheme>
+        <cbc:CompanyID>${company.vat_number}</cbc:CompanyID>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>${company.legal_name}</cbc:RegistrationName>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      ${customer.peppol_id ? `<cbc:EndpointID schemeID="0196">${customer.peppol_id}</cbc:EndpointID>` : ''}
+      <cac:PartyName>
+        <cbc:Name>${customer.name}</cbc:Name>
+      </cac:PartyName>
+      <cac:PostalAddress>
+        <cbc:StreetName>${customer.address || ''}</cbc:StreetName>
+        <cac:Country>
+          <cbc:IdentificationCode>BE</cbc:IdentificationCode>
+        </cac:Country>
+      </cac:PostalAddress>
+      ${customer.vat_number ? `
+      <cac:PartyTaxScheme>
+        <cbc:CompanyID>${customer.vat_number}</cbc:CompanyID>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>` : ''}
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>${customer.name}</cbc:RegistrationName>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="${doc.currency || 'EUR'}">${(doc.total * 0.21 / 1.21).toFixed(2)}</cbc:TaxAmount>
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="${doc.currency || 'EUR'}">${(doc.total / 1.21).toFixed(2)}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="${doc.currency || 'EUR'}">${(doc.total * 0.21 / 1.21).toFixed(2)}</cbc:TaxAmount>
+      <cac:TaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>21</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:TaxCategory>
+    </cac:TaxSubtotal>
+  </cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="${doc.currency || 'EUR'}">${(doc.total / 1.21).toFixed(2)}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="${doc.currency || 'EUR'}">${(doc.total / 1.21).toFixed(2)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="${doc.currency || 'EUR'}">${Number(doc.total).toFixed(2)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="${doc.currency || 'EUR'}">${Number(doc.total).toFixed(2)}</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+  ${(doc.items || []).map((item, idx) => `
+  <cac:InvoiceLine>
+    <cbc:ID>${idx + 1}</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="C62">${item.qty}</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="${doc.currency || 'EUR'}">${(item.qty * item.unit_price / 1.21).toFixed(2)}</cbc:LineExtensionAmount>
+    <cac:Item>
+      <cbc:Description>${item.description || item.name}</cbc:Description>
+      <cbc:Name>${item.name}</cbc:Name>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>${item.vat_rate || 21}</cbc:Percent>
+        <cac:TaxScheme>
+          <cbc:ID>VAT</cbc:ID>
+        </cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="${doc.currency || 'EUR'}">${(item.unit_price / 1.21).toFixed(2)}</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>`).join('')}
+</Invoice>`;
 }
 
 // ========================================

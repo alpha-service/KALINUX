@@ -337,7 +337,7 @@ export default function DocumentViewer({ document }) {
                         <td className="p-2 text-right font-mono">€{amounts.vat.toFixed(2)}</td>
                       </tr>
                     ))}
-                    <tr className="bg-blue-900 text-white">
+                    <tr className="bg-black text-white">
                       <td className="border-r border-white p-3 font-bold text-sm">Total TTC / Totaal incl. BTW</td>
                       <td className="p-3 text-right font-mono font-bold text-lg">
                         €{(document.total || calculatedTotal).toFixed(2)}

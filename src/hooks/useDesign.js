@@ -84,8 +84,8 @@ export const DESIGN_CONFIG = {
     surfaceBg: 'bg-gradient-to-br from-slate-100 to-slate-200',
     borderColor: 'border-white/20',
     // Button styles
-    primaryButton: 'bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white shadow-lg shadow-orange-500/25',
-    secondaryButton: 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25',
+    primaryButton: 'bg-gradient-to-r from-neutral-700 to-neutral-900 hover:from-neutral-800 hover:to-black text-white shadow-lg shadow-black/25',
+    secondaryButton: 'bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-black text-white shadow-lg shadow-black/25',
     ghostButton: 'hover:bg-white/50 backdrop-blur',
     // Header
     headerStyle: 'glass',
@@ -94,9 +94,9 @@ export const DESIGN_CONFIG = {
     navItemStyle: 'rounded-xl',
     // Input
     inputBorder: 'border border-white/30 bg-white/50 backdrop-blur',
-    inputFocus: 'focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500/50',
+    inputFocus: 'focus:ring-2 focus:ring-neutral-500/30 focus:border-neutral-500/50',
     // Product cards
-    productCardStyle: 'bg-white/70 backdrop-blur border border-white/30 hover:bg-white/90 hover:shadow-xl hover:shadow-purple-500/10 hover:-translate-y-1',
+    productCardStyle: 'bg-white/70 backdrop-blur border border-white/30 hover:bg-white/90 hover:shadow-xl hover:shadow-black/10 hover:-translate-y-1',
     // Icons
     iconSize: 'w-5 h-5',
     // Animations

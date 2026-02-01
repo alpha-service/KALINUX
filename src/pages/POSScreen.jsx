@@ -21,7 +21,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import PaymentModal from "@/components/PaymentModal";
 import CustomerSelect from "@/components/CustomerSelect";
-import { generateReceiptPDF } from "@/utils/pdfGenerator";
 import { usePOSLayout } from "@/hooks/usePOSLayout";
 import ResizableHandle from "@/components/pos/ResizableHandle";
 import LayoutSelector from "@/components/pos/LayoutSelector";
@@ -465,6 +464,20 @@ export default function POSScreen() {
       const timeDiff = now - lastKeyTime;
       lastKeyTime = now;
 
+      // Handle non-EN keyboard layouts (like FR Azerty)
+      // When Shift is pressed (or Caps Lock), Azerty produces digits.
+      // Many scanners simulate Shift+Digit or just send the character.
+      // We map the common Azerty symbols back to digits.
+      const azertyMap = {
+        '&': '1', 'é': '2', '"': '3', '\'': '4', '(': '5',
+        '-': '6', 'è': '7', '_': '8', 'ç': '9', 'à': '0'
+      };
+
+      let key = e.key;
+      if (azertyMap[key]) {
+        key = azertyMap[key];
+      }
+
       // Scanner types fast (< 50ms between keys), human types slow
       // If too slow, reset buffer (likely human typing)
       // Approx scanners typically send at 10-30ms intervals
@@ -490,9 +503,9 @@ export default function POSScreen() {
         return;
       }
 
-      // Only add printable characters
-      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        barcodeBuffer += e.key;
+      // Only add printable characters (or our mapped digits)
+      if (key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        barcodeBuffer += key;
 
         // Clear existing timeout
         if (timeout) clearTimeout(timeout);
@@ -816,8 +829,18 @@ export default function POSScreen() {
       const docResponse = await axios.post(`${API}/documents`, documentData);
       const document = docResponse.data;
 
-      // Generate and download PDF
-      generateReceiptPDF(sale, selectedCustomer);
+      // Print thermal receipt automatically
+      try {
+        const isElectron = window.electronAPI?.isElectron;
+        if (isElectron) {
+          await window.electronAPI.printer.printReceipt(document);
+        } else {
+          await axios.post(`${API}/print/thermal`, document);
+        }
+      } catch (printError) {
+        console.error("Thermal print failed:", printError);
+        toast.error("Erreur d'impression du ticket");
+      }
 
       toast.success(`Vente ${sale.number} enregistrée! Document ${document.number} créé!`, { duration: 3000 });
 
@@ -1052,13 +1075,13 @@ export default function POSScreen() {
       {/* Cart Header */}
       <div className={cn(
         "p-2 border-b",
-        currentDesign === DESIGNS.MODERN ? "bg-white/80 backdrop-blur-xl border-purple-200/50" :
+        currentDesign === DESIGNS.MODERN ? "bg-white/80 backdrop-blur-xl border-neutral-200/50" :
           currentDesign === DESIGNS.MINIMAL ? "bg-white border-neutral-300" : "bg-white border-slate-200"
       )}>
         <div className="flex items-center justify-between mb-2">
           <h2 className={cn(
             "font-heading font-bold text-sm",
-            currentDesign === DESIGNS.MODERN ? "text-purple-900" :
+            currentDesign === DESIGNS.MODERN ? "text-black" :
               currentDesign === DESIGNS.MINIMAL ? "text-black tracking-wider" : "text-brand-navy"
           )}>
             {t('pos_cart')}
@@ -1070,7 +1093,7 @@ export default function POSScreen() {
               size="sm"
               className={cn(
                 "h-6 w-6 p-0",
-                currentDesign === DESIGNS.MODERN ? "hover:bg-purple-100 rounded-full" :
+                currentDesign === DESIGNS.MODERN ? "hover:bg-neutral-100 rounded-full" :
                   currentDesign === DESIGNS.MINIMAL ? "hover:bg-neutral-200 rounded-none" : ""
               )}
               onClick={toggleCompactCart}
@@ -1082,7 +1105,7 @@ export default function POSScreen() {
               variant="secondary"
               className={cn(
                 "text-white text-xs",
-                currentDesign === DESIGNS.MODERN ? "bg-purple-600 rounded-full" :
+                currentDesign === DESIGNS.MODERN ? "bg-black rounded-full" :
                   currentDesign === DESIGNS.MINIMAL ? "bg-black rounded-none" : ""
               )}
               style={{ backgroundColor: currentDesign === DESIGNS.CLASSIC ? colors.primary : undefined }}
@@ -1097,13 +1120,13 @@ export default function POSScreen() {
           {selectedCustomer ? (
             <div className={cn(
               "flex items-center justify-between p-1.5",
-              currentDesign === DESIGNS.MODERN ? "bg-purple-50 rounded-xl" :
+              currentDesign === DESIGNS.MODERN ? "bg-neutral-50 rounded-xl" :
                 currentDesign === DESIGNS.MINIMAL ? "bg-neutral-100 rounded-none" : "bg-slate-50 rounded"
             )}>
               <div className="flex items-center gap-1.5">
                 <User className={cn(
                   "w-3 h-3",
-                  currentDesign === DESIGNS.MODERN ? "text-purple-600" :
+                  currentDesign === DESIGNS.MODERN ? "text-neutral-600" :
                     currentDesign === DESIGNS.MINIMAL ? "text-black" : "text-brand-navy"
                 )} />
                 <span className="text-xs font-medium truncate">{selectedCustomer.name}</span>
@@ -1122,7 +1145,7 @@ export default function POSScreen() {
               variant="outline"
               className={cn(
                 "w-full h-7 justify-start text-xs border-dashed",
-                currentDesign === DESIGNS.MODERN ? "rounded-xl border-purple-300 hover:bg-purple-50" :
+                currentDesign === DESIGNS.MODERN ? "rounded-xl border-neutral-300 hover:bg-neutral-50" :
                   currentDesign === DESIGNS.MINIMAL ? "rounded-none border-neutral-400 border-2" : ""
               )}
               onClick={() => setShowCustomerSelect(true)}
@@ -1138,7 +1161,7 @@ export default function POSScreen() {
       {/* Cart Items - COMPACT or NORMAL mode */}
       <ScrollArea className={cn(
         "flex-1",
-        currentDesign === DESIGNS.MODERN ? "bg-gradient-to-b from-purple-50/30 to-white" :
+        currentDesign === DESIGNS.MODERN ? "bg-gradient-to-b from-neutral-50/30 to-white" :
           currentDesign === DESIGNS.MINIMAL ? "bg-neutral-50" :
             currentDesign === DESIGNS.LEGACY ? "bg-gradient-to-b from-yellow-50 to-white" : ""
       )}>
@@ -1146,7 +1169,7 @@ export default function POSScreen() {
           <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
             <ShoppingCart className={cn(
               "w-12 h-12 mb-3 opacity-30",
-              currentDesign === DESIGNS.MODERN ? "text-purple-400" :
+              currentDesign === DESIGNS.MODERN ? "text-neutral-400" :
                 currentDesign === DESIGNS.MINIMAL ? "text-neutral-400" :
                   currentDesign === DESIGNS.LEGACY ? "text-orange-400" : ""
             )} />
@@ -1155,7 +1178,7 @@ export default function POSScreen() {
         ) : (
           <div className={cn(
             compactCart ? (
-              currentDesign === DESIGNS.MODERN ? "divide-y divide-purple-100" :
+              currentDesign === DESIGNS.MODERN ? "divide-y divide-neutral-100" :
                 currentDesign === DESIGNS.MINIMAL ? "divide-y divide-neutral-200" :
                   "divide-y divide-slate-100"
             ) : "p-2 space-y-1"
@@ -1189,7 +1212,7 @@ export default function POSScreen() {
       {/* Cart Footer */}
       <div className={cn(
         "p-2 border-t space-y-2",
-        currentDesign === DESIGNS.MODERN ? "bg-white/80 backdrop-blur-xl border-purple-200/50" :
+        currentDesign === DESIGNS.MODERN ? "bg-white/80 backdrop-blur-xl border-neutral-200/50" :
           currentDesign === DESIGNS.MINIMAL ? "bg-white border-neutral-300" : "bg-white border-slate-200"
       )}>
         {/* Quick Add Product Button */}
@@ -1199,10 +1222,10 @@ export default function POSScreen() {
           className={cn(
             "w-full h-7 border-dashed text-xs",
             currentDesign === DESIGNS.MODERN
-              ? "text-blue-600 hover:bg-blue-50 border-blue-300 rounded-full"
+              ? "text-black hover:bg-neutral-100 border-neutral-300 rounded-full"
               : currentDesign === DESIGNS.MINIMAL
                 ? "text-black hover:bg-neutral-100 border-neutral-400 rounded-none border-2"
-                : "text-blue-600 hover:bg-blue-50"
+                : "text-black hover:bg-slate-100 border border-slate-300"
           )}
           onClick={() => setShowQuickAddProduct(true)}
         >
@@ -1227,7 +1250,7 @@ export default function POSScreen() {
           )} />
           <div className={cn(
             "flex justify-between items-center text-base font-bold",
-            currentDesign === DESIGNS.MODERN ? "text-purple-900" :
+            currentDesign === DESIGNS.MODERN ? "text-black" :
               currentDesign === DESIGNS.MINIMAL ? "text-black" : "text-brand-navy"
           )}>
             <span>TOTAL</span>
@@ -1242,7 +1265,7 @@ export default function POSScreen() {
           className={cn(
             "w-full h-7 border-dashed text-xs",
             currentDesign === DESIGNS.MODERN
-              ? "text-purple-600 hover:bg-purple-50 border-purple-300 rounded-full"
+              ? "text-black hover:bg-neutral-100 border-neutral-400 rounded-full"
               : currentDesign === DESIGNS.MINIMAL
                 ? "text-black hover:bg-neutral-100 border-neutral-400 rounded-none border-2"
                 : "text-brand-orange hover:bg-brand-orange/5"
@@ -1254,7 +1277,7 @@ export default function POSScreen() {
           {globalDiscount.value > 0 && (
             <Badge className={cn(
               "ml-1.5 text-[10px] h-4",
-              currentDesign === DESIGNS.MODERN ? "bg-purple-600 rounded-full" :
+              currentDesign === DESIGNS.MODERN ? "bg-black rounded-full" :
                 currentDesign === DESIGNS.MINIMAL ? "bg-black rounded-none" : "bg-brand-orange"
             )}>
               {globalDiscount.type === "percent" ? `${globalDiscount.value}%` : `€${globalDiscount.value}`}
@@ -1297,26 +1320,26 @@ export default function POSScreen() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className={cn(
                 "w-48",
-                currentDesign === DESIGNS.MODERN ? "rounded-2xl shadow-xl shadow-purple-500/10" :
+                currentDesign === DESIGNS.MODERN ? "rounded-2xl shadow-xl shadow-black/10" :
                   currentDesign === DESIGNS.MINIMAL ? "rounded-none border-2 border-black" : ""
               )}>
                 <DropdownMenuLabel className="text-[10px] text-muted-foreground">{t('documents_create')}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSaveAsDevis} className="text-xs">
-                  <FileText className="w-3 h-3 mr-2 text-blue-500" />
+                  <FileText className="w-3 h-3 mr-2 text-black" />
                   {t('doc_quote')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSaveAsPurchaseOrder} className="text-xs">
-                  <Package className="w-3 h-3 mr-2 text-purple-500" />
+                  <Package className="w-3 h-3 mr-2 text-black" />
                   {t('doc_purchase_order')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSaveAsInvoice} className="text-xs">
-                  <FileCheck className="w-3 h-3 mr-2 text-green-500" />
+                  <FileCheck className="w-3 h-3 mr-2 text-black" />
                   {t('doc_invoice')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSaveAsDeliveryNote} className="text-xs">
-                  <Truck className="w-3 h-3 mr-2 text-orange-500" />
+                  <Truck className="w-3 h-3 mr-2 text-black" />
                   {t('doc_delivery_note')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -1326,7 +1349,7 @@ export default function POSScreen() {
             className={cn(
               "w-full pay-button h-10 text-sm font-bold",
               currentDesign === DESIGNS.MODERN
-                ? "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-xl shadow-lg shadow-purple-500/20"
+                ? "bg-gradient-to-r from-neutral-700 to-black hover:from-neutral-800 hover:to-black rounded-xl shadow-lg shadow-black/20"
                 : currentDesign === DESIGNS.MINIMAL
                   ? "bg-black hover:bg-neutral-800 rounded-none"
                   : "bg-brand-orange hover:bg-brand-orange/90"
@@ -1347,14 +1370,14 @@ export default function POSScreen() {
     return (
       <div className={cn(
         "flex items-center justify-center h-screen",
-        currentDesign === DESIGNS.MODERN ? "bg-gradient-to-br from-slate-100 via-purple-50 to-slate-100" :
+        currentDesign === DESIGNS.MODERN ? "bg-gradient-to-br from-slate-100 via-neutral-50 to-slate-100" :
           currentDesign === DESIGNS.MINIMAL ? "bg-neutral-100" :
             currentDesign === DESIGNS.LEGACY ? "bg-gradient-to-b from-yellow-100 to-orange-50" : "bg-brand-gray"
       )}>
         <div className="text-center">
           <div className={cn(
             "w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4",
-            currentDesign === DESIGNS.MODERN ? "border-purple-600" :
+            currentDesign === DESIGNS.MODERN ? "border-black" :
               currentDesign === DESIGNS.MINIMAL ? "border-black" :
                 currentDesign === DESIGNS.LEGACY ? "border-orange-500" : "border-brand-navy"
           )}>
@@ -1376,7 +1399,7 @@ export default function POSScreen() {
       <header
         className={cn(
           "text-white px-2 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between z-10 shrink-0",
-          currentDesign === DESIGNS.MODERN ? "bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 shadow-xl shadow-purple-500/10" :
+          currentDesign === DESIGNS.MODERN ? "bg-gradient-to-r from-slate-900 via-black to-slate-900 shadow-xl shadow-black/10" :
             currentDesign === DESIGNS.MINIMAL ? "bg-black border-b-2 border-neutral-800" :
               currentDesign === DESIGNS.LEGACY ? "bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 text-black shadow-md" : "shadow-lg"
         )}
@@ -1385,7 +1408,7 @@ export default function POSScreen() {
         <div className="flex items-center gap-1.5 sm:gap-2">
           <div className={cn(
             "flex items-center justify-center shrink-0",
-            currentDesign === DESIGNS.MODERN ? "w-7 h-7 sm:w-9 sm:h-9 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg" :
+            currentDesign === DESIGNS.MODERN ? "w-7 h-7 sm:w-9 sm:h-9 bg-gradient-to-br from-neutral-600 to-black rounded-xl shadow-lg" :
               currentDesign === DESIGNS.MINIMAL ? "w-7 h-7 sm:w-9 sm:h-9 bg-white" :
                 currentDesign === DESIGNS.LEGACY ? "w-7 h-7 sm:w-9 sm:h-9 bg-white rounded shadow-sm" : "w-7 h-7 sm:w-9 sm:h-9 bg-white rounded-lg"
           )}>
@@ -1473,7 +1496,7 @@ export default function POSScreen() {
           {/* Search and Categories */}
           <div className={cn(
             "p-4 border-b space-y-3",
-            currentDesign === DESIGNS.MODERN ? "bg-white/80 backdrop-blur-xl border-purple-200/50" :
+            currentDesign === DESIGNS.MODERN ? "bg-white/80 backdrop-blur-xl border-neutral-200/50" :
               currentDesign === DESIGNS.MINIMAL ? "bg-white border-neutral-300" :
                 currentDesign === DESIGNS.LEGACY ? "bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-300" : "bg-white border-slate-200"
           )}>
@@ -1510,7 +1533,7 @@ export default function POSScreen() {
                   <ChevronRight className="w-4 h-4" />
                   <span className={cn(
                     "font-medium",
-                    currentDesign === DESIGNS.MODERN ? "text-purple-900" :
+                    currentDesign === DESIGNS.MODERN ? "text-black" :
                       currentDesign === DESIGNS.MINIMAL ? "text-black" :
                         currentDesign === DESIGNS.LEGACY ? "text-orange-800" : "text-brand-navy"
                   )}>{language === 'nl' ? (selectedCategory.name_nl || selectedCategory.name_fr) : selectedCategory.name_fr}</span>
@@ -1534,7 +1557,7 @@ export default function POSScreen() {
               <div className="flex-1 relative">
                 <Search className={cn(
                   "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5",
-                  currentDesign === DESIGNS.MODERN ? "text-purple-400" :
+                  currentDesign === DESIGNS.MODERN ? "text-neutral-400" :
                     currentDesign === DESIGNS.MINIMAL ? "text-neutral-500" :
                       currentDesign === DESIGNS.LEGACY ? "text-orange-500" : "text-muted-foreground"
                 )} />

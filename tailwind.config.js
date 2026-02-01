@@ -18,8 +18,8 @@ module.exports = {
                 },
                 colors: {
                         brand: {
-                                navy: '#1a365d',
-                                orange: '#ff6b35',
+                                navy: '#000000',
+                                orange: '#374151',
                                 gray: '#f7fafc',
                         },
                         background: 'hsl(var(--background))',

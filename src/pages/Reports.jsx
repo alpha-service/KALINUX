@@ -243,7 +243,7 @@ export default function Reports() {
               {Object.entries(dashboardData.payment_methods).map(([method, amount], idx) => {
                 const total = Object.values(dashboardData.payment_methods).reduce((a, b) => a + b, 0);
                 const percent = total > 0 ? (amount / total * 100) : 0;
-                const colors = ['bg-green-500', 'bg-blue-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500'];
+                const colors = ['bg-black', 'bg-neutral-800', 'bg-neutral-600', 'bg-neutral-400', 'bg-neutral-200'];
                 return (
                   <div key={method} className="space-y-1">
                     <div className="flex justify-between text-sm">
