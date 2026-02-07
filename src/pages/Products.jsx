@@ -56,12 +56,14 @@ export default function Products() {
 
   // New category creation modal
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
   const [categoryFormData, setCategoryFormData] = useState({
     name_fr: "",
     name_nl: "",
     slug: "",
     image_url: "",
-    active: true
+    active: true,
+    parent_id: null
   });
 
   // Image upload states
@@ -141,10 +143,10 @@ export default function Products() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
 
-  // When a category is selected, load its products
+  // When a category is selected, load its products but keep collections view (for subcategories)
   useEffect(() => {
     if (selectedCategory) {
-      setCurrentView("products");
+      setCurrentView("collections");
       fetchProducts(selectedCategory.id);
     } else if (viewMode === "categories") {
       setCurrentView("collections");
@@ -152,6 +154,13 @@ export default function Products() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, viewMode]);
+
+  // Format image URL
+  const getImageUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    return `${window.location.origin}${url}`;
+  };
 
   // Fetch all products without category filter
   const fetchAllProducts = async () => {
@@ -199,6 +208,8 @@ export default function Products() {
   const selectCategory = (category) => {
     setSelectedCategory(category);
     setSearchQuery("");
+    // Fetch products in this category to show alongside subcategories
+    fetchProducts(category.id);
   };
 
   // Go back to categories list
@@ -216,14 +227,24 @@ export default function Products() {
   };
 
   // Filter categories by search
+  // Filter categories by search and parent
   const filteredCategories = useMemo(() => {
-    if (!searchQuery) return categories;
-    const q = searchQuery.toLowerCase();
-    return categories.filter(cat =>
-      cat.name_fr?.toLowerCase().includes(q) ||
-      cat.name_nl?.toLowerCase().includes(q)
-    );
-  }, [categories, searchQuery]);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return categories.filter(cat =>
+        cat.name_fr?.toLowerCase().includes(q) ||
+        cat.name_nl?.toLowerCase().includes(q)
+      );
+    }
+
+    // If category selected, show its children
+    if (selectedCategory) {
+      return categories.filter(cat => cat.parent_id === selectedCategory.id);
+    }
+
+    // Otherwise show root categories
+    return categories.filter(cat => !cat.parent_id);
+  }, [categories, searchQuery, selectedCategory]);
 
   const filteredProducts = useMemo(() => {
     if (!searchQuery) return products;
@@ -389,7 +410,7 @@ export default function Products() {
         categoryId = catResponse.data.id;
         // Refresh categories list
         await fetchCategories();
-        toast.success(`Catégorie "${newCategoryName}" créée`);
+        toast.success(`Catégorie "${newCategoryName}" créée`, { duration: 2000 });
         setNewCategoryName("");
         setShowNewCategoryInput(false);
       }
@@ -446,12 +467,12 @@ export default function Products() {
       if (editingProduct) {
         const response = await axios.put(`${API}/products/${editingProduct.id}`, data);
         savedProduct = response.data;
-        toast.success("Produit modifié");
+        toast.success("Produit modifié", { duration: 2000 });
       } else {
         const response = await axios.post(`${API}/products`, data);
         savedProduct = response.data;
         console.log('Product created:', response.data);
-        toast.success("Produit créé");
+        toast.success("Produit créé", { duration: 2000 });
       }
 
       setShowModal(false);
@@ -503,7 +524,7 @@ export default function Products() {
 
     try {
       await axios.delete(`${API}/products/${productId}`);
-      toast.success("Produit supprimé");
+      toast.success("Produit supprimé", { duration: 2000 });
       if (selectedCategory) fetchProducts(selectedCategory.id);
       else if (viewMode === "all") fetchAllProducts();
     } catch (error) {
@@ -523,16 +544,41 @@ export default function Products() {
 
   // Open category creation modal
   const openCategoryModal = () => {
+    setEditingCategory(null);
     setCategoryFormData({
       name_fr: "",
       name_nl: "",
       slug: "",
       image_url: "",
-      active: true
+      active: true,
+      parent_id: null
     });
     setImageUrl("");
     setImageFile(null);
     setImagePreview("");
+    setShowCategoryModal(true);
+  };
+
+  const openEditCategoryModal = (category) => {
+    setEditingCategory(category);
+    setCategoryFormData({
+      name_fr: category.name_fr,
+      name_nl: category.name_nl,
+      slug: category.slug,
+      image_url: category.image_url || "",
+      active: category.active !== false,
+      parent_id: category.parent_id
+    });
+
+    if (category.image_url) {
+      setImageUrl(category.image_url);
+      setImagePreview(category.image_url.startsWith('http') ? category.image_url : `${window.location.origin}${category.image_url}`);
+      setImageUploadMethod("url");
+    } else {
+      setImageUrl("");
+      setImagePreview("");
+    }
+    setImageFile(null);
     setShowCategoryModal(true);
   };
 
@@ -546,10 +592,22 @@ export default function Products() {
       .replace(/^-+|-+$/g, ''); // Trim hyphens
   };
 
-  // Handle category creation
+  // Handle category creation or update
   const handleCreateCategory = async (e) => {
     e.preventDefault();
     try {
+      // Check for duplicate category name (skip if self)
+      const isDuplicate = categories.some(cat =>
+        cat.name_fr.toLowerCase() === categoryFormData.name_fr.toLowerCase() &&
+        cat.parent_id === categoryFormData.parent_id &&
+        (!editingCategory || cat.id !== editingCategory.id)
+      );
+
+      if (isDuplicate) {
+        toast.error("Une catégorie avec ce nom existe déjà dans cette section", { duration: 2000 });
+        return;
+      }
+
       let finalImageUrl = categoryFormData.image_url;
 
       // Handle image upload if file selected
@@ -564,29 +622,55 @@ export default function Products() {
         finalImageUrl = uploadResponse.data.url;
       }
       // Handle URL import
-      else if (imageUrl && imageUploadMethod === "url") {
+      else if (imageUrl && imageUploadMethod === "url" && imageUrl !== categoryFormData.image_url) {
         setUploadingImage(true);
         const importResponse = await axios.post(`${API}/images/import`, { url: imageUrl });
         finalImageUrl = importResponse.data.url;
       }
 
-      // Create category
-      const response = await axios.post(`${API}/categories`, {
-        ...categoryFormData,
-        image_url: finalImageUrl,
-        slug: categoryFormData.slug || generateSlug(categoryFormData.name_fr)
-      });
+      let response;
+      if (editingCategory) {
+        response = await axios.put(`${API}/categories/${editingCategory.id}`, {
+          ...categoryFormData,
+          image_url: finalImageUrl,
+          slug: categoryFormData.slug || generateSlug(categoryFormData.name_fr)
+        });
+        toast.success(`Catégorie modifiée`, { duration: 2000 });
 
-      toast.success(`Catégorie "${categoryFormData.name_fr}" créée`);
+        // Update selected if needed
+        if (selectedCategory && selectedCategory.id === editingCategory.id) {
+          setSelectedCategory(response.data);
+        }
+      } else {
+        // Create category
+        response = await axios.post(`${API}/categories`, {
+          ...categoryFormData,
+          image_url: finalImageUrl,
+          slug: categoryFormData.slug || generateSlug(categoryFormData.name_fr)
+        });
+        toast.success(`Catégorie "${categoryFormData.name_fr}" créée`, { duration: 2000 });
+      }
 
-      // Refresh categories and select the new one
+      // Refresh categories
       await fetchCategories();
-      setFormData({ ...formData, category_id: response.data.id });
 
+      // If it's a subcategory and NEW, navigate to parent category to show it
+      if (!editingCategory) {
+        if (response.data.parent_id) {
+          const parent = categories.find(c => c.id === response.data.parent_id);
+          if (parent) setSelectedCategory(parent);
+        } else {
+          // If top-level category, select it
+          setSelectedCategory({ id: response.data.id });
+        }
+      }
+
+      setFormData({ ...formData, category_id: response.data.id });
       setShowCategoryModal(false);
+      setEditingCategory(null);
     } catch (error) {
-      console.error("Category creation error:", error);
-      toast.error(error.response?.data?.error || "Erreur lors de la création");
+      console.error("Category saving error:", error);
+      toast.error(error.response?.data?.error || "Erreur lors de la sauvegarde", { duration: 2000 });
     } finally {
       setUploadingImage(false);
     }
@@ -671,7 +755,12 @@ export default function Products() {
                   Collections / Collecties
                 </>
               ) : (
-                selectedCategory.name_fr
+                <div className="flex items-center gap-2">
+                  {selectedCategory.name_fr}
+                  <Button variant="ghost" size="sm" onClick={() => openEditCategoryModal(selectedCategory)} className="h-6 w-6 p-0 hover:bg-slate-200 rounded-full">
+                    <Edit className="w-3.5 h-3.5 text-muted-foreground hover:text-brand-navy" />
+                  </Button>
+                </div>
               )}
               {(currentView === "products" || currentView === "all") && (
                 <Badge variant="secondary" className="text-sm ml-2">
@@ -737,13 +826,24 @@ export default function Products() {
                   <LayoutList className="w-4 h-4" />
                 </Button>
               </div>
-              <Button
-                className="bg-brand-orange hover:bg-brand-orange/90"
-                onClick={openCategoryModal}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Nouvelle collection
-              </Button>
+              {!selectedCategory && (
+                <Button
+                  className="bg-brand-orange hover:bg-brand-orange/90"
+                  onClick={openCategoryModal}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nouvelle collection
+                </Button>
+              )}
+              {selectedCategory && (
+                <Button
+                  className="bg-brand-orange hover:bg-brand-orange/90"
+                  onClick={openCreateModal}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nouveau produit
+                </Button>
+              )}
             </>
           )}
 
@@ -824,7 +924,7 @@ export default function Products() {
                   <div className="w-16 h-16 rounded-xl flex items-center justify-center mb-3 transition-colors bg-gradient-to-br from-brand-orange/10 to-brand-navy/10 group-hover:from-brand-orange/20 group-hover:to-brand-navy/20">
                     {category.image_url ? (
                       <img
-                        src={category.image_url}
+                        src={getImageUrl(category.image_url)}
                         alt={category.name_fr}
                         className="w-12 h-12 object-cover rounded-lg"
                       />
@@ -850,6 +950,64 @@ export default function Products() {
               </button>
             ))
           )}
+        </div>
+      )}
+
+      {/* Products in selected category (shown alongside subcategories) */}
+      {currentView === "collections" && selectedCategory && filteredProducts.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold mb-4 text-brand-navy">Produits dans cette catégorie</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {filteredProducts.map((product) => (
+              <div
+                key={product.id}
+                className="group bg-white rounded-xl border border-slate-200 overflow-hidden hover:border-brand-orange hover:shadow-lg transition-all duration-200"
+              >
+                <div className="aspect-square bg-slate-50 flex items-center justify-center overflow-hidden">
+                  {product.image_url ? (
+                    <img
+                      src={getImageUrl(product.image_url)}
+                      alt={product.name_fr}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                  ) : (
+                    <Package className="w-12 h-12 text-slate-300" />
+                  )}
+                </div>
+                <div className="p-3">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <h3 className="font-medium text-sm text-brand-navy line-clamp-2 flex-1">
+                      {product.name_fr}
+                    </h3>
+                    {getStockBadge(product)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">{product.sku}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-brand-orange">
+                      €{parseFloat(product.price_retail || 0).toFixed(2)}
+                    </p>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEditModal(product)}
+                      >
+                        Modifier
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600"
+                        onClick={() => handleDelete(product.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -891,7 +1049,7 @@ export default function Products() {
                         <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br from-brand-orange/10 to-brand-navy/10">
                           {category.image_url ? (
                             <img
-                              src={category.image_url}
+                              src={getImageUrl(category.image_url)}
                               alt={category.name_fr}
                               className="w-10 h-10 object-cover rounded-lg"
                             />
@@ -949,7 +1107,7 @@ export default function Products() {
                 <div className="aspect-square bg-slate-50 relative">
                   {product.image_url ? (
                     <img
-                      src={product.image_url}
+                      src={getImageUrl(product.image_url)}
                       alt={product.name_fr}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -1034,7 +1192,7 @@ export default function Products() {
                         <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden">
                           {product.image_url ? (
                             <img
-                              src={product.image_url}
+                              src={getImageUrl(product.image_url)}
                               alt={product.name_fr}
                               className="w-full h-full object-cover"
                               loading="lazy"
@@ -1118,7 +1276,7 @@ export default function Products() {
                   <div className="aspect-square bg-slate-50 relative">
                     {product.image_url ? (
                       <img
-                        src={product.image_url}
+                        src={getImageUrl(product.image_url)}
                         alt={product.name_fr}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -1207,7 +1365,7 @@ export default function Products() {
                         <div className="w-12 h-12 rounded border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
                           {product.image_url ? (
                             <img
-                              src={product.image_url}
+                              src={getImageUrl(product.image_url)}
                               alt={product.name_fr}
                               className="w-full h-full object-cover"
                               loading="lazy"
@@ -1380,8 +1538,17 @@ export default function Products() {
                     <SelectValue placeholder="Sélectionnez une catégorie" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map(cat => (
-                      <SelectItem key={cat.id} value={String(cat.id)}>{cat.name_fr}</SelectItem>
+                    {categories.filter(c => !c.parent_id).map(parent => (
+                      <div key={parent.id}>
+                        <SelectItem value={String(parent.id)} className="font-bold">
+                          {parent.name_fr}
+                        </SelectItem>
+                        {categories.filter(sub => sub.parent_id === parent.id).map(sub => (
+                          <SelectItem key={sub.id} value={String(sub.id)} className="pl-6">
+                            — {sub.name_fr}
+                          </SelectItem>
+                        ))}
+                      </div>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1846,9 +2013,9 @@ export default function Products() {
       <Dialog open={showCategoryModal} onOpenChange={setShowCategoryModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Nouvelle catégorie / collection</DialogTitle>
+            <DialogTitle>{editingCategory ? "Modifier la catégorie / collection" : "Nouvelle catégorie / collection"}</DialogTitle>
             <DialogDescription>
-              Créez une nouvelle catégorie pour organiser vos produits
+              {editingCategory ? "Modifiez les informations de la catégorie" : "Créez une nouvelle catégorie pour organiser vos produits"}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateCategory} className="space-y-4">
@@ -1882,17 +2049,45 @@ export default function Products() {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="cat_slug">Slug (URL)</Label>
-              <Input
-                id="cat_slug"
-                value={categoryFormData.slug}
-                onChange={(e) => setCategoryFormData({ ...categoryFormData, slug: e.target.value })}
-                placeholder="carrelage (auto-généré)"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Utilisé dans les URLs. Auto-généré depuis le nom FR.
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="cat_parent">Catégorie parente (Optionnel)</Label>
+                <Select
+                  value={categoryFormData.parent_id?.toString() || "none"}
+                  onValueChange={(val) => setCategoryFormData({ ...categoryFormData, parent_id: val === "none" ? null : parseInt(val) })}
+                >
+                  <SelectTrigger id="cat_parent">
+                    <SelectValue placeholder="Choisir une catégorie parente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucune (Catégorie racine)</SelectItem>
+                    {categories.filter(c => !c.parent_id).map(parent => (
+                      <div key={parent.id}>
+                        <SelectItem value={parent.id.toString()} className="font-bold">
+                          {parent.name_fr}
+                        </SelectItem>
+                        {categories.filter(sub => sub.parent_id === parent.id).map(sub => (
+                          <SelectItem key={sub.id} value={sub.id.toString()} className="pl-6">
+                            — {sub.name_fr}
+                          </SelectItem>
+                        ))}
+                      </div>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="cat_slug">Slug (URL)</Label>
+                <Input
+                  id="cat_slug"
+                  value={categoryFormData.slug}
+                  onChange={(e) => setCategoryFormData({ ...categoryFormData, slug: e.target.value })}
+                  placeholder="carrelage (auto-généré)"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Auto-généré depuis le nom FR.
+                </p>
+              </div>
             </div>
 
             <div>
@@ -2001,7 +2196,7 @@ export default function Products() {
                 ) : (
                   <>
                     <Plus className="w-4 h-4 mr-2" />
-                    Créer
+                    {editingCategory ? "Sauvegarder" : "Créer"}
                   </>
                 )}
               </Button>

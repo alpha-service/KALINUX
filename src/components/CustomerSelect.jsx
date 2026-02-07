@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { Search, User, Building2, Phone, Mail, Check, Plus, UserPlus } from "lucide-react";
+import { Search, User, Building2, Phone, Mail, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -26,7 +26,8 @@ export default function CustomerSelect({ open, onClose, onSelect }) {
     postal_code: "",
     city: "",
     country: "BE",
-    vat_number: ""
+    vat_number: "",
+    language: "fr"
   });
 
   useEffect(() => {
@@ -69,7 +70,8 @@ export default function CustomerSelect({ open, onClose, onSelect }) {
         postal_code: "",
         city: "",
         country: "BE",
-        vat_number: ""
+        vat_number: "",
+        language: "fr"
       });
     } catch (error) {
       toast.error("Erreur lors de la création du client");
@@ -95,15 +97,30 @@ export default function CustomerSelect({ open, onClose, onSelect }) {
             <form onSubmit={handleCreateCustomer} className="space-y-4">
               <div>
                 <Label htmlFor="type">Type *</Label>
-                <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="individual">Particulier / Privé</SelectItem>
-                    <SelectItem value="company">Professionnel / Zakelijk</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">Particulier / Privé</SelectItem>
+                        <SelectItem value="company">Professionnel / Zakelijk</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-[120px]">
+                    <Select value={formData.language} onValueChange={(value) => setFormData({ ...formData, language: value })}>
+                      <SelectTrigger title="Langue / Taal">
+                        <SelectValue placeholder="Langue" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fr">🇫🇷 FR</SelectItem>
+                        <SelectItem value="nl">🇳🇱 NL</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -215,8 +232,8 @@ export default function CustomerSelect({ open, onClose, onSelect }) {
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${customer.type === "company"
-                                ? "bg-blue-100 text-blue-600"
-                                : "bg-slate-100 text-slate-600"
+                              ? "bg-blue-100 text-blue-600"
+                              : "bg-slate-100 text-slate-600"
                               }`}>
                               {customer.type === "company" ? (
                                 <Building2 className="w-5 h-5" />

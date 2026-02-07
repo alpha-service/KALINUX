@@ -36,20 +36,42 @@ $excludePatterns = @(
 
 # Создать архив
 Push-Location $LOCAL_PATH
-$files = Get-ChildItem -Recurse | Where-Object {
+# Use a more reliable way to create archive with directory structure
+if (Test-Path $archivePath) { Remove-Item $archivePath -Force }
+
+# Create a temporary directory for staging to ensure clean structure
+$stagePath = Join-Path $env:TEMP "pos-stage"
+if (Test-Path $stagePath) { Remove-Item $stagePath -Recurse -Force }
+New-Item -ItemType Directory -Path $stagePath | Out-Null
+
+# Copy files while excluding patterns
+Get-ChildItem -Path . -Recurse | Where-Object {
     $item = $_
+    $relativeName = $item.FullName.Substring($LOCAL_PATH.Length + 1)
     $exclude = $false
     foreach ($pattern in $excludePatterns) {
-        if ($item.FullName -like "*\$pattern*" -or $item.Name -like $pattern) {
+        if ($relativeName -like "$pattern*" -or $relativeName -like "*\$pattern*") {
             $exclude = $true
             break
         }
     }
-    -not $exclude -and -not $item.PSIsContainer
+    -not $exclude
+} | ForEach-Object {
+    $targetPath = Join-Path $stagePath $_.FullName.Substring($LOCAL_PATH.Length + 1)
+    if ($_.PSIsContainer) {
+        New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
+    } else {
+        Copy-Item -Path $_.FullName -Destination $targetPath -Force
+    }
 }
 
-Compress-Archive -Path $files.FullName -DestinationPath $archivePath -Force
+Push-Location $stagePath
+Compress-Archive -Path * -DestinationPath $archivePath -Force
 Pop-Location
+Pop-Location
+
+# Cleanup stage
+Remove-Item $stagePath -Recurse -Force
 
 Write-Host "✅ Архив создан: $archivePath" -ForegroundColor Green
 Write-Host ""
@@ -109,6 +131,9 @@ echo '   http://pos.kruhn.eu:8080'
 echo ''
 echo '📝 Логи: cd /opt/pos && docker-compose logs -f'
 "@
+
+# Fix line endings for Linux bash
+$deployScript = $deployScript -replace "`r`n", "`n"
 
 ssh "${VPS_USER}@${VPS_IP}" $deployScript
 
